@@ -1,0 +1,24 @@
+{
+  "name": "tls-planscan",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser-based terrestrial laser scanning station planner and QA export tool.",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node --env-file-if-exists=.env scripts/dev.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "test:browser": "node tests/browser.mjs"
+  },
+  "dependencies": {
+    "jspdf": "4.2.1",
+    "pdfjs-dist": "6.5.438"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "playwright": "1.65.1"
+  }
+}

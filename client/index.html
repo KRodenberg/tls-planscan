@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f5f7fa"><meta name="description" content="Plan terrestrial laser scanning stations and export a QA plan."><title>PlanScan — TLS Tools</title><link rel="icon" href="/assets/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/styles.css"><script src="/vendor/jspdf.js" defer></script><script type="module" src="/app.js"></script></head>
+<body>
+<svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+<symbol id="i-scan" viewBox="0 0 24 24"><path d="m12 3 8 15H4L12 3Z"/><path d="M12 9v4m0 3h.01"/></symbol>
+<symbol id="i-add-scan" viewBox="0 0 24 24"><path d="m12 3 8 15H4L12 3Z"/><path d="M12 9v6m-3-3h6"/></symbol>
+<symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5h16v-5"/></symbol>
+<symbol id="i-map" viewBox="0 0 24 24"><path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2V5Zm6-2v16m6-14v16"/></symbol>
+<symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H5v18h14V8l-5-5Zm0 0v6h5M8 13h8m-8 4h8"/></symbol>
+<symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7V4h6l3 3h9v13H3V7Z"/></symbol>
+<symbol id="i-save" viewBox="0 0 24 24"><path d="M4 3h13l4 4v14H3V3h1Zm3 0v6h10V3M7 21v-8h10v8"/></symbol>
+<symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v13m-5-5 5 5 5-5M4 16v5h16v-5"/></symbol>
+<symbol id="i-cursor" viewBox="0 0 24 24"><path d="m5 3 14 10-7 1-3 7L5 3Z"/></symbol>
+<symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/></symbol>
+<symbol id="i-link" viewBox="0 0 24 24"><path d="m10 14 4-4m-5 7-2 2a4 4 0 0 1-6-6l5-5a4 4 0 0 1 6 0m3-1 2-2a4 4 0 0 1 6 6l-5 5a4 4 0 0 1-6 0" transform="translate(1 0) scale(.92)"/></symbol>
+<symbol id="i-ruler" viewBox="0 0 24 24"><path d="m3 16 13-13 5 5L8 21l-5-5Zm3-3 3 3m0-6 2 2m1-5 3 3m0-6 2 2"/></symbol>
+<symbol id="i-hand" viewBox="0 0 24 24"><path d="M6 12V7a2 2 0 0 1 4 0v4-7a2 2 0 0 1 4 0v7-6a2 2 0 0 1 4 0v8-3a2 2 0 0 1 4 0v6c0 4-3 6-7 6-3 0-5-1-7-4l-5-5a2 2 0 0 1 3-3l2 2" transform="translate(-1 0) scale(.95)"/></symbol>
+<symbol id="i-undo" viewBox="0 0 24 24"><path d="M8 5 3 10l5 5m-5-5h11a6 6 0 0 1 0 12" transform="translate(0 -2)"/></symbol>
+<symbol id="i-redo" viewBox="0 0 24 24"><path d="m16 5 5 5-5 5m5-5H10a6 6 0 0 0 0 12" transform="translate(0 -2)"/></symbol>
+<symbol id="i-fit" viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m8 0h5v-5M8 8h8v8H8Z"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="10" cy="18" r="2"/></symbol>
+<symbol id="i-rotate" viewBox="0 0 24 24"><path d="M20 7V2m0 5h-5m5 0a9 9 0 1 0 1 9"/></symbol>
+<symbol id="i-chevron" viewBox="0 0 24 24"><path d="m8 10 4 4 4-4"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10h.01"/></symbol>
+</defs></svg>
+<a class="skip-link" href="#add-center">Skip to stations</a>
+<header class="app-header">
+ <a class="brand" href="/" aria-label="PlanScan home"><span class="brand-symbol"><svg class="icon"><use href="#i-scan"/></svg></span><span>Plan<span class="brand-light">Scan</span></span></a>
+ <span class="header-divider"></span>
+ <div class="project-heading"><label class="sr-only" for="project-title">Project name</label><input id="project-title" value="Warehouse survey" maxlength="100"><span id="save-state" class="save-state"><svg class="icon"><use href="#i-check"/></svg>Saved on this device</span></div>
+ <div class="header-actions"><button class="button quiet" id="new-project" title="New plan" aria-label="New plan"><svg class="icon"><use href="#i-plus"/></svg><span>New</span></button><button class="button" id="open-project" aria-label="Open project"><svg class="icon"><use href="#i-folder"/></svg><span>Open</span></button><button class="button" id="save-project" aria-label="Save project"><svg class="icon"><use href="#i-save"/></svg><span>Save project</span></button><button class="button primary" id="export-plan" aria-label="Export QA plan"><svg class="icon"><use href="#i-download"/></svg><span>Export QA plan</span></button></div>
+</header>
+<main class="workspace">
+<button id="sidebar-backdrop" class="sidebar-backdrop" aria-label="Close settings" hidden></button>
+<aside class="sidebar" id="settings-panel" aria-label="Plan settings">
+ <div class="sidebar-title"><h1>Scan plan</h1><span id="sample-badge" class="tag">Sample</span><button id="close-settings" class="icon-button mobile-only" aria-label="Close settings"><svg class="icon"><use href="#i-x"/></svg></button></div>
+ <div class="sidebar-scroll">
+ <section class="panel-section underlay-section"><div class="section-heading"><h2>Underlay</h2><button class="text-button" id="project-details">Project details</button></div>
+  <div class="source-actions"><button class="button" id="upload-plan"><svg class="icon"><use href="#i-upload"/></svg>Upload plan</button><button class="button" id="google-map"><svg class="icon"><use href="#i-map"/></svg>Google Maps</button></div>
+  <div class="underlay-file"><svg class="icon"><use href="#i-file"/></svg><div><span id="underlay-name">Sample floor plan</span><span class="secondary" id="underlay-detail">1400 × 900 px</span></div><button class="icon-button" id="rotate-plan" title="Rotate plan clockwise" aria-label="Rotate plan clockwise"><svg class="icon"><use href="#i-rotate"/></svg></button></div>
+  <div class="scale-setting"><span id="scale-status"><svg class="icon"><use href="#i-check"/></svg>Calibrated</span><button class="text-button" id="calibrate-plan">Set scale</button></div>
+ </section>
+ <section class="panel-section"><div class="section-heading"><h2>Scan profiles</h2><span class="secondary">min:sec</span></div>
+ <table class="profile-table"><caption class="sr-only">Scan density, editable time per station, station count and subtotal</caption><thead><tr><th scope="col">Density</th><th scope="col">Time / scan</th><th scope="col">Qty</th><th scope="col">Subtotal</th></tr></thead><tbody>
+ <tr><th scope="row"><button class="density-button active" data-density="low" aria-pressed="false"><span class="density-dot low"></span>Low</button></th><td><label class="sr-only" for="time-low">Low density time per station in minutes and seconds</label><input id="time-low" class="time-input" inputmode="numeric" value="02:00" autocomplete="off" aria-describedby="time-error"></td><td id="count-low">3</td><td id="subtotal-low">6 min</td></tr>
+ <tr><th scope="row"><button class="density-button active" data-density="medium" aria-pressed="true"><span class="density-dot medium"></span>Medium</button></th><td><label class="sr-only" for="time-medium">Medium density time per station in minutes and seconds</label><input id="time-medium" class="time-input" inputmode="numeric" value="03:00" autocomplete="off" aria-describedby="time-error"></td><td id="count-medium">6</td><td id="subtotal-medium">18 min</td></tr>
+ <tr><th scope="row"><button class="density-button" data-density="high" aria-pressed="false"><span class="density-dot high"></span>High</button></th><td><label class="sr-only" for="time-high">High density time per station in minutes and seconds</label><input id="time-high" class="time-input" inputmode="numeric" value="04:00" autocomplete="off" aria-describedby="time-error"></td><td id="count-high">3</td><td id="subtotal-high">12 min</td></tr>
+ </tbody></table><p id="time-error" class="field-error" hidden>Use minutes or min:sec, for example 3:30.</p>
+ <label class="setup-row" for="setup-time">Move / setup per scan<input id="setup-time" aria-describedby="time-error" class="time-input" inputmode="numeric" value="00:00" autocomplete="off"></label>
+ </section>
+ <section class="estimate-section" aria-label="Time estimate"><div class="estimate-label">Estimated time<span class="secondary" id="estimate-count">12 stations</span></div><output class="estimate-total" id="estimate-total" aria-live="polite">36 min</output><div class="estimate-detail" id="estimate-detail">Scan time · setup excluded</div></section>
+ <section class="station-section"><div class="section-heading"><h2>Stations <span class="count-badge" id="station-count">12</span></h2><div class="station-actions"><button class="text-button" id="add-center" title="Add station at the center of the plan">Add scan</button><button class="text-button" id="add-target">Add target</button></div></div><ul id="station-list" class="station-list" aria-label="Stations and targets"></ul><div id="station-empty" class="station-empty" hidden>No stations placed.</div></section>
+ <section class="selection-section" id="selection-panel" hidden><div class="section-heading"><h2 id="selection-title">Station 001</h2><button class="icon-button" id="delete-selected" aria-label="Delete selected station"><svg class="icon"><use href="#i-trash"/></svg></button></div><div class="selection-grid"><label>Density<select id="selection-density"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label><label>X <span id="coordinate-unit">px</span><input type="number" id="station-x" step="any" min="0"></label><label>Y <span class="coordinate-unit">px</span><input type="number" id="station-y" step="any" min="0"></label></div><button class="text-button" id="edit-links">Edit links</button><label class="note-label" for="station-note">Note<input id="station-note" maxlength="500" placeholder="Optional"></label></section>
+ <details class="display-settings"><summary>Display</summary><label><input type="checkbox" id="show-labels" checked>Station labels</label><label><input type="checkbox" id="show-links" checked>Links</label><label class="marker-size-label" for="marker-size">Marker size<input id="marker-size" type="range" min="60" max="180" step="10" value="100"></label></details>
+ </div><footer class="sidebar-footer"><button class="text-button danger" id="clear-stations">Clear stations</button><button class="icon-button" id="show-help" aria-label="Keyboard shortcuts and help"><svg class="icon"><use href="#i-info"/></svg></button></footer>
+</aside>
+<section class="drawing-workspace" aria-label="Drawing workspace">
+ <div class="canvas-toolbar"><div class="tool-group" role="toolbar" aria-label="Plan tools">
+ <button class="tool-button" data-tool="select" aria-label="Select and move (V)" title="Select and move (V)"><svg class="icon"><use href="#i-cursor"/></svg><span>Select</span></button>
+ <button class="tool-button selected" data-tool="scan" aria-pressed="true" aria-label="Place scan station (S)" title="Place scan station (S)"><svg class="icon"><use href="#i-add-scan"/></svg><span>Scan</span></button>
+ <button class="tool-button" data-tool="target" aria-label="Place target (T)" title="Place target (T)"><svg class="icon"><use href="#i-target"/></svg><span>Target</span></button>
+ <button class="tool-button" data-tool="link" aria-label="Link two stations (L)" title="Link two stations (L)"><svg class="icon"><use href="#i-link"/></svg><span>Link</span></button>
+ <button class="tool-button" data-tool="scale" aria-label="Calibrate distance (C)" title="Calibrate distance (C)"><svg class="icon"><use href="#i-ruler"/></svg><span>Scale</span></button>
+ <button class="tool-button" data-tool="pan" aria-label="Pan plan (H)" title="Pan plan (H)"><svg class="icon"><use href="#i-hand"/></svg><span>Pan</span></button>
+ </div><span class="toolbar-divider"></span><div class="history-tools"><button class="icon-button" id="undo" aria-label="Undo (Ctrl+Z)" title="Undo (Ctrl+Z)" disabled><svg class="icon"><use href="#i-undo"/></svg></button><button class="icon-button" id="redo" aria-label="Redo (Ctrl+Shift+Z)" title="Redo (Ctrl+Shift+Z)" disabled><svg class="icon"><use href="#i-redo"/></svg></button></div><button class="button mobile-only settings-toggle" id="open-settings" aria-controls="settings-panel" aria-expanded="false"><svg class="icon"><use href="#i-settings"/></svg><span>Settings</span></button></div>
+ <div id="canvas-stage" class="canvas-stage" data-mode="scan">
+  <svg id="plan-svg" xmlns="http://www.w3.org/2000/svg" tabindex="0" role="group" aria-label="Scan plan. Use arrow keys to move the selected station. Use the station list for keyboard editing."><g id="viewport"><rect id="paper" fill="white"/><image id="underlay-image" preserveAspectRatio="none"/><g id="plan-links"></g><g id="plan-stations"></g><g id="calibration-marks"></g></g></svg>
+  <div class="canvas-empty" id="canvas-empty" hidden><span class="empty-icon"><svg class="icon"><use href="#i-upload"/></svg></span><h2>Add an underlay</h2><div class="empty-actions"><button class="button primary" id="empty-upload">Upload plan</button><button class="button" id="empty-map">Google Maps</button></div><span class="secondary">PDF, PNG, JPG or WEBP</span><button class="text-button" id="load-sample">Open sample plan</button></div>
+  <div class="canvas-notice" id="canvas-notice" hidden></div>
+  <div class="plan-meta"><span id="plan-badge">GROUND FLOOR</span><span id="plan-revision">REV 01</span></div>
+  <div class="canvas-bottom"><div class="tool-status" id="tool-status"><span class="density-dot medium"></span>Place scan · Medium</div><div class="zoom-controls"><button class="icon-button" id="zoom-out" aria-label="Zoom out"><svg class="icon"><use href="#i-minus"/></svg></button><output id="zoom-level" aria-label="Zoom level">100%</output><button class="icon-button" id="zoom-in" aria-label="Zoom in"><svg class="icon"><use href="#i-plus"/></svg></button><span></span><button class="icon-button" id="fit-plan" aria-label="Fit plan (F)" title="Fit plan (F)"><svg class="icon"><use href="#i-fit"/></svg></button></div></div>
+ </div>
+ <div class="status-bar"><span id="status-left">12 stations · 11 links</span><span id="status-scale">Scale calibrated</span><span class="mobile-estimate" id="mobile-estimate">36 min</span></div>
+</section>
+</main>
+<input type="file" id="underlay-input" accept="image/png,image/jpeg,image/webp,application/pdf" hidden><input type="file" id="project-input" accept=".json,.txt,.planscan" hidden>
+<div id="toast" class="toast" role="status" hidden></div><div class="sr-only" id="announcements" aria-live="polite"></div>
+<dialog id="modal" aria-labelledby="modal-title"><div class="modal-header"><h2 id="modal-title"></h2><button id="close-modal" class="icon-button" aria-label="Close dialog"><svg class="icon"><use href="#i-x"/></svg></button></div><div id="modal-body"></div></dialog>
+</body></html>

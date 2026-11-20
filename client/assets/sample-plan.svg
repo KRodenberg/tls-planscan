@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900">
+<rect width="1400" height="900" fill="#fff"/>
+<g font-family="Arial,sans-serif" fill="#697480"><text x="100" y="65" font-size="17" font-weight="700" letter-spacing="1.5">GROUND FLOOR</text><text x="1300" y="65" font-size="14" text-anchor="end">SAMPLE PLAN</text></g>
+<g fill="#f3f5f6"><rect x="101" y="102" width="1198" height="22"/><rect x="101" y="102" width="22" height="696"/><rect x="1278" y="102" width="22" height="696"/><rect x="101" y="776" width="1198" height="22"/><rect x="895" y="102" width="20" height="250"/><rect x="895" y="400" width="20" height="180"/><rect x="895" y="630" width="20" height="168"/><rect x="900" y="338" width="400" height="20"/><rect x="900" y="570" width="400" height="20"/></g>
+<g fill="none" stroke="#42505b" stroke-width="4" stroke-linecap="square"><path d="M100 100H1300V800H100V640M100 570V100M900 100V270M900 350V510M900 590V800M900 345H1050M1130 345H1300M900 580H1060M1140 580H1300M1100 100V345"/>
+<path d="M100 570H170M170 570A70 70 0 0 1 100 640M900 270H980M980 270A80 80 0 0 1 900 350M1050 345V265M1050 265A80 80 0 0 1 1130 345M900 510H980M980 510A80 80 0 0 1 900 590M1060 580V660M1060 660A80 80 0 0 0 1140 580" stroke="#9aa6b0" stroke-width="1.5"/>
+</g>
+<g fill="#fff" stroke="#64727d" stroke-width="2"><rect x="340" y="335" width="18" height="18"/><rect x="590" y="335" width="18" height="18"/><rect x="840" y="335" width="18" height="18"/><rect x="340" y="595" width="18" height="18"/><rect x="590" y="595" width="18" height="18"/><rect x="840" y="595" width="18" height="18"/></g>
+<g font-family="Arial,sans-serif" fill="#77838d" font-size="15" text-anchor="middle"><text x="490" y="415" letter-spacing="2">WAREHOUSE</text><text x="995" y="165">OFFICE 01</text><text x="1200" y="165">OFFICE 02</text><text x="1100" y="420">MEETING ROOM</text><text x="1100" y="665">PLANT ROOM</text><text x="490" y="680" letter-spacing="1">LOADING AREA</text></g>
+<g fill="none" stroke="#b1bac2" stroke-width="1"><path d="M100 840H1300M100 830V850M1300 830V850M60 100V800M50 100H70M50 800H70"/></g>
+<g font-family="Arial,sans-serif" font-size="13" fill="#7d8993"><text x="700" y="864" text-anchor="middle">30.00 m</text><text x="36" y="450" text-anchor="middle" transform="rotate(-90 36 450)">17.50 m</text></g>
+</svg>
