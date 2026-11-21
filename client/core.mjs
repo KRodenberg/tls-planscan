@@ -26,7 +26,7 @@ export function estimate(project) {
   return { counts, subtotals, count, targets, scan, setup, target, total: scan + setup + target };
 }
 export function newProject(sample = false) {
-  const project = { version: 3, id: uid(), title: sample ? 'Warehouse survey' : 'Untitled plan', site: '', revision: '01', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), profiles: { low: 120, medium: 180, high: 240 }, setupSeconds: 0, targetSeconds: 0, nextStationNumber: 1, nextTargetNumber: 1, stations: [], links: [], underlay: null, overlay: null, display: { labels: true, markerSize: 1, links: true }, output: { paper:'a4', orientation:'landscape', format:'pdf' }, sample };
+  const project = { version: 4, id: uid(), title: sample ? 'Warehouse survey' : 'Untitled plan', site: '', revision: '01', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), profiles: { low: 120, medium: 180, high: 240 }, setupSeconds: 0, targetSeconds: 0, nextStationNumber: 1, nextTargetNumber: 1, stations: [], links: [], underlay: null, overlay: null, mapView: null, display: { labels: true, markerSize: 1, links: true }, output: { paper:'a4', orientation:'landscape', format:'pdf' }, sample };
   if (sample) {
     project.underlay = { kind: 'sample', name: 'Sample floor plan', width: 1400, height: 900, dataUrl: null, metresPerPixel: 0.025, unit: 'm', source: 'Illustrative sample', page: null };
     const points = [[225,225,'medium'],[480,225,'medium'],[750,225,'high'],[1000,225,'low'],[1180,225,'low'],[225,485,'medium'],[480,485,'high'],[750,485,'medium'],[1065,485,'low'],[1180,705,'high'],[750,705,'medium'],[375,705,'medium']];
@@ -36,7 +36,7 @@ export function newProject(sample = false) {
   return project;
 }
 export function addStation(project, x, y, kind = 'scan', density = 'medium') {
-  if (!project.underlay || !Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x > project.underlay.width || y > project.underlay.height || !['scan','target'].includes(kind) || !DENSITIES.includes(density)) throw new Error('Choose a position within the plan.');
+  if (!validPosition(project,x,y) || !['scan','target'].includes(kind) || !DENSITIES.includes(density)) throw new Error('Choose a position within the plan.');
   if (project.stations.length >= LIMITS.stations || (kind === 'target' ? project.nextTargetNumber : project.nextStationNumber) > LIMITS.number) throw new Error('This plan has reached its station limit.');
   const number = kind === 'target' ? project.nextTargetNumber++ : project.nextStationNumber++;
   const station = { id: uid(), number, kind, density, x, y, note: '' };
@@ -44,7 +44,7 @@ export function addStation(project, x, y, kind = 'scan', density = 'medium') {
 }
 export function deleteStation(project, id) { project.stations = project.stations.filter(s => s.id !== id); project.links = project.links.filter(l => l.from !== id && l.to !== id); }
 export function snapshot(project) {
-  return {...project,profiles:{...project.profiles},display:{...project.display},output:{...project.output},
+  return {...project,profiles:{...project.profiles},display:{...project.display},output:{...project.output},mapView:project.mapView?{...project.mapView}:null,
     underlay:project.underlay?{...project.underlay,...(project.underlay.map?{map:{...project.underlay.map,...(project.underlay.map.wmts?{wmts:{...project.underlay.map.wmts}}:{})}}:{}),...(project.underlay.georeference?{georeference:{...project.underlay.georeference,extent:{...project.underlay.georeference.extent}}}:{})}:null,
     overlay:project.overlay?{...project.overlay}:null,
     stations:project.stations.map(s=>({...s,...(s.mga2020?{mga2020:{...s.mga2020}}:{})})),links:project.links.map(l=>({...l}))};
@@ -53,7 +53,7 @@ export function serializable(project) { const data=snapshot(project);updateStati
 const fail = message => { throw new Error(message); };
 const textValue = (value, max = 200) => typeof value === 'string' ? value.slice(0, max) : '';
 export function normalizeProject(raw) {
-  if (!raw || ![2,3].includes(raw.version) || !Array.isArray(raw.stations) || !Array.isArray(raw.links)) fail('Choose a PlanScan project (.planscan.json).');
+  if (!raw || ![2,3,4].includes(raw.version) || !Array.isArray(raw.stations) || !Array.isArray(raw.links)) fail('Choose a PlanScan project (.planscan.json).');
   if (raw.stations.length > LIMITS.stations || raw.links.length > LIMITS.links) fail('This project exceeds the station or link limit.');
   const p = newProject(); p.id = textValue(raw.id) || uid(); p.title = textValue(raw.title, 100) || 'Untitled plan'; p.site = textValue(raw.site); p.revision = textValue(raw.revision, 20) || '01'; p.sample = !!raw.sample;
   for (const key of ['createdAt','updatedAt']) if (typeof raw[key] === 'string' && Number.isFinite(Date.parse(raw[key]))) p[key] = new Date(raw[key]).toISOString();
@@ -66,7 +66,7 @@ export function normalizeProject(raw) {
     const u=raw.underlay,kind=u.kind==='google'?'blank':u.kind;
     if(!['sample','image','pdf','six','blank'].includes(kind)||!Number.isFinite(u.width)||!Number.isFinite(u.height)||u.width<1||u.height<1||u.width>20000||u.height>20000)fail('The project contains an invalid underlay.');
     const dataUrl=typeof u.dataUrl==='string'?u.dataUrl:null;
-    if(['image','pdf','six'].includes(kind)&&!validImage(dataUrl))fail('The project underlay image is missing, unsupported or too large.');
+    if((['image','pdf'].includes(kind)||(kind==='six'&&!u.map?.live))&&!validImage(dataUrl))fail('The project underlay image is missing, unsupported or too large.');
     if(u.metresPerPixel!=null&&(!Number.isFinite(u.metresPerPixel)||u.metresPerPixel<=0||u.metresPerPixel>100000))fail('The project contains an invalid scale.');
     p.underlay={kind,name:kind==='blank'?'Blank canvas':textValue(u.name),width:u.width,height:u.height,dataUrl:['image','pdf','six'].includes(kind)?dataUrl:null,metresPerPixel:u.metresPerPixel??null,unit:'m',source:kind==='blank'?'':textValue(u.source),page:Number.isInteger(u.page)?u.page:null};
     if(kind==='sample')Object.assign(p.underlay,{width:1400,height:900});
@@ -76,17 +76,18 @@ export function normalizeProject(raw) {
       p.underlay.georeference={zone:g.zone,epsg:g.epsg,extent:{xmin:e.xmin,ymin:e.ymin,xmax:e.xmax,ymax:e.ymax}};
       p.underlay.metresPerPixel=(e.xmax-e.xmin)/u.width;
       p.underlay.map={latitude:Number(u.map?.latitude)||0,longitude:Number(u.map?.longitude)||0,widthMetres:Number(u.map?.widthMetres)||500};
-      if(u.map?.wmts){p.underlay.map.wmts={capabilitiesUrl:'https://maps.six.nsw.gov.au/arcgis/rest/services/public/NSW_Base_Map/MapServer/WMTS/1.0.0/WMTSCapabilities.xml',layer:'public_NSW_Base_Map',matrixSet:'default028mm'};p.underlay.source='SIX Maps NSW Base Map · WMTS';}else p.underlay.source='SIX Maps · NSW Spatial Services';
+      if(u.map?.live){Object.assign(p.underlay.map,{live:true,portalItemId:'c04ce33be7a04a7884f786f5beb20b19',serviceUrl:'https://portal.spatial.nsw.gov.au/aid/tile/rest/services/NSWWebImagery/MapServer'});p.underlay.dataUrl=null;p.underlay.name='NSW Imagery Basemap';p.underlay.source='NSW DCS Spatial Services; SPOT Image (Geoimage GeoHD) © Airbus DS 2025 — DCCEEW';}
+      else if(u.map?.wmts){p.underlay.map.wmts={capabilitiesUrl:'https://maps.six.nsw.gov.au/arcgis/rest/services/public/NSW_Base_Map/MapServer/WMTS/1.0.0/WMTSCapabilities.xml',layer:'public_NSW_Base_Map',matrixSet:'default028mm'};p.underlay.source='SIX Maps NSW Base Map · WMTS';}else p.underlay.source='SIX Maps · NSW Spatial Services';
     }
   }
   if(raw.overlay){
     const o=raw.overlay;
-    if(p.underlay?.kind!=='six'||!['image','pdf'].includes(o.kind)||!validImage(o.dataUrl)||!['width','height','x','y','size','rotation','opacity'].every(k=>Number.isFinite(o[k]))||o.width<1||o.height<1||o.width>20000||o.height>20000||o.size<=0||o.size>p.underlay.width*20||Math.abs(o.x)>p.underlay.width*20||Math.abs(o.y)>p.underlay.height*20||o.opacity<0||o.opacity>1)fail('The project contains an invalid image overlay.');
+    if(p.underlay?.kind!=='six'||!['image','pdf'].includes(o.kind)||!validImage(o.dataUrl)||!['width','height','x','y','size','rotation','opacity'].every(k=>Number.isFinite(o[k]))||o.width<1||o.height<1||o.width>20000||o.height>20000||o.size<=0||o.size>p.underlay.width*20||Math.abs(o.x)>(p.underlay.map?.live?1e9:p.underlay.width*20)||Math.abs(o.y)>(p.underlay.map?.live?1e9:p.underlay.height*20)||o.opacity<0||o.opacity>1)fail('The project contains an invalid image overlay.');
     p.overlay={kind:o.kind,name:textValue(o.name),width:o.width,height:o.height,dataUrl:o.dataUrl,page:Number.isInteger(o.page)?o.page:null,x:o.x,y:o.y,size:o.size,rotation:o.rotation%360,opacity:o.opacity,calibrated:!!o.calibrated};
   }
   const ids = new Set(), numbers = new Set();
   for (const s of raw.stations) {
-    if (!s || !['scan','target'].includes(s.kind) || !DENSITIES.includes(s.density) || !Number.isInteger(s.number) || s.number < 1 || s.number > LIMITS.number || !Number.isFinite(s.x) || !Number.isFinite(s.y) || !p.underlay || s.x < 0 || s.y < 0 || s.x > p.underlay.width || s.y > p.underlay.height) fail('The project contains an invalid station.');
+    if (!s || !['scan','target'].includes(s.kind) || !DENSITIES.includes(s.density) || !Number.isInteger(s.number) || s.number < 1 || s.number > LIMITS.number || !Number.isFinite(s.x) || !Number.isFinite(s.y) || !p.underlay || !validPosition(p,s.x,s.y)) fail('The project contains an invalid station.');
     if (typeof s.id !== 'string' || !s.id.trim() || s.id.length > 200) fail('The project contains an invalid station ID.');
     const id = s.id;
     if (ids.has(id) || numbers.has(`${s.kind}:${s.number}`)) fail('The project has duplicate station IDs.');
@@ -105,6 +106,7 @@ export function normalizeProject(raw) {
     if(linkIds.has(id)) fail('The project has duplicate link IDs.');
     p.links.push({id,from:l.from,to:l.to});pairs.add(pair);linkIds.add(id);
   }
+  if(raw.mapView&&p.underlay?.map?.live){const v=raw.mapView;if(!['easting','northing','resolution','width','height'].every(key=>Number.isFinite(v[key]))||v.resolution<=0||v.resolution>5000||v.width<1||v.height<1)fail('The project contains an invalid map view.');p.mapView={easting:v.easting,northing:v.northing,resolution:v.resolution,width:v.width,height:v.height};}
   p.display = {labels:raw.display?.labels!==false,links:raw.display?.links!==false,markerSize:Math.max(0.6,Math.min(2,Number(raw.display?.markerSize)||1))};
   p.output = {paper:raw.output?.paper==='a3'?'a3':'a4',orientation:raw.output?.orientation==='portrait'?'portrait':'landscape',format:raw.output?.format==='png'?'png':'pdf'};
   updateStationCoordinates(p);return p;
@@ -142,6 +144,30 @@ export function calibrateOverlay(underlay,overlay,points,distance){
   if(!Number.isFinite(factor)||factor<=0||pixels<2||size>underlay.width*20)throw new Error('Choose different image points and a valid distance.');
   const anchor=points[0],center={x:overlay.x+overlay.size/2,y:overlay.y+overlay.size*overlay.height/overlay.width/2};
   const x=anchor.x+(center.x-anchor.x)*factor-size/2,y=anchor.y+(center.y-anchor.y)*factor-height/2;
-  if(Math.abs(x)>underlay.width*20||Math.abs(y)>underlay.height*20)throw new Error('The scaled image is too far outside the aerial. Move it closer and retry.');
+  if(Math.abs(x)>(underlay.map?.live?1e9:underlay.width*20)||Math.abs(y)>(underlay.map?.live?1e9:underlay.height*20))throw new Error('The scaled image is too far outside the aerial. Move it closer and retry.');
   return {...overlay,size,x,y,calibrated:true};
+}
+
+export function positionBounds(project){
+ const u=project.underlay;if(!u)return null;
+ if(u.map?.live){const e=u.georeference.extent,m=u.metresPerPixel;return {xmin:(100000-e.xmin)/m,xmax:(900000-e.xmin)/m,ymin:(e.ymax-10000000)/m,ymax:e.ymax/m};}
+ return {xmin:0,ymin:0,xmax:u.width,ymax:u.height};
+}
+export function validPosition(project,x,y){const b=positionBounds(project);return !!b&&Number.isFinite(x)&&Number.isFinite(y)&&x>=b.xmin&&x<=b.xmax&&y>=b.ymin&&y<=b.ymax;}
+export function imageryExportExtent(project){
+ const u=project.underlay,points=project.stations.map(s=>({x:s.x,y:s.y}));
+ if(project.overlay){const o=project.overlay;for(const point of [{x:0,y:0},{x:o.width,y:0},{x:o.width,y:o.height},{x:0,y:o.height}])points.push(overlayPointToWorld(o,point));}
+ if(!points.length&&project.mapView){const v=project.mapView;return {xmin:v.easting-v.width*v.resolution/2,xmax:v.easting+v.width*v.resolution/2,ymin:v.northing-v.height*v.resolution/2,ymax:v.northing+v.height*v.resolution/2};}
+ if(!points.length)return {...u.georeference.extent};
+ const coordinates=points.map(point=>stationCoordinates(project,point)),xs=coordinates.map(c=>c.easting),ys=coordinates.map(c=>c.northing),xmin=Math.min(...xs),xmax=Math.max(...xs),ymin=Math.min(...ys),ymax=Math.max(...ys);
+ const width=Math.max((xmax-xmin)*1.2,(ymax-ymin)*1.2*4/3,(u.map.widthMetres||500)*.2),height=width*3/4,cx=(xmin+xmax)/2,cy=(ymin+ymax)/2;
+ return {xmin:cx-width/2,xmax:cx+width/2,ymin:cy-height/2,ymax:cy+height/2};
+}
+export function projectForMapSnapshot(project,frame){
+ const copy=snapshot(project),old=project.underlay,e=frame.extent,m=(e.xmax-e.xmin)/frame.width;
+ const translate=point=>{const c=stationCoordinates(project,point);return {x:(c.easting-e.xmin)/m,y:(e.ymax-c.northing)/m};};
+ copy.underlay={...copy.underlay,width:frame.width,height:frame.height,dataUrl:frame.dataUrl,metresPerPixel:m,georeference:{...old.georeference,extent:{...e}}};
+ copy.stations=copy.stations.map(station=>({...station,...translate(station)}));
+ if(copy.overlay)copy.overlay={...copy.overlay,...translate(copy.overlay),size:copy.overlay.size*old.metresPerPixel/m};
+ updateStationCoordinates(copy);return copy;
 }

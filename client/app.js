@@ -1,6 +1,6 @@
-import {DENSITIES,LIMITS,COLORS,uid,stationLabel,parseDuration,inputDuration,formatDuration,estimate,newProject,addStation,deleteStation,snapshot,serializable,normalizeProject,coordinateFactor,stationCoordinates,coordinateToPixel,updateStationCoordinates,niceScale,newOverlay,overlayPointToWorld,calibrateOverlay} from './core.mjs';
+import {DENSITIES,LIMITS,COLORS,uid,stationLabel,parseDuration,inputDuration,formatDuration,estimate,newProject,addStation,deleteStation,snapshot,serializable,normalizeProject,coordinateFactor,stationCoordinates,coordinateToPixel,updateStationCoordinates,niceScale,newOverlay,overlayPointToWorld,calibrateOverlay,validPosition,positionBounds,imageryExportExtent,projectForMapSnapshot} from './core.mjs';
 import {createQA,saveQA,downloadFile} from './export.mjs';
-import {loadSixWmts} from '/vendor/wmts.mjs';
+import {loadSixBasemap,createLiveBasemap,PORTAL_ITEM_ID,IMAGERY_SERVICE,IMAGERY_ATTRIBUTION} from '/vendor/map.mjs';
 
 const $ = id => document.getElementById(id);
 const svgNS='http://www.w3.org/2000/svg';
@@ -8,6 +8,7 @@ const icon=name=>`<svg class="icon" aria-hidden="true"><use href="#i-${name}"/><
 const escapeHTML=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let project=newProject(true), tool='scan', density='medium', selected=null, linkStart=null, scalePoints=[], pointer=null;
 let past=[],future=[],view={x:0,y:0,scale:1},fitMode=true,fitScale=1,saveTimer,toastTimer,db;
+let liveEngine=null,liveEnginePromise=null,liveEngineKey=null,liveEngineFailed=false;
 let invalidTimes=new Set(),restoreComplete=false,modalCleanup=null,localEdits=false;
 
 function toast(message,error=false){$('toast').textContent=message;$('toast').classList.toggle('error',error);$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,4200);}
@@ -21,7 +22,24 @@ function commit(mutator,{fit=false,list=true}={}){const before=snapshot(project)
 function undo(){if(!past.length)return;future.push(snapshot(project));project=past.pop();selected=null;invalidTimes.clear();render();fitPlan();saveDraft();announce('Undone.');}
 function redo(){if(!future.length)return;past.push(snapshot(project));project=future.pop();selected=null;invalidTimes.clear();render();fitPlan();saveDraft();announce('Redone.');}
 
+function isLiveMap(){return project.underlay?.kind==='six'&&project.underlay.map?.live;}
+function upgradeMap(next){if(next.underlay?.kind==='six'){const u=next.underlay;u.map={...u.map,live:true,portalItemId:PORTAL_ITEM_ID,serviceUrl:IMAGERY_SERVICE};delete u.map.wmts;u.dataUrl=null;u.name='NSW Imagery Basemap';u.source=IMAGERY_ATTRIBUTION;}return next;}
 function imageSource(){const u=project.underlay;return u?.kind==='sample'?'/assets/sample-plan.svg':u?.kind==='blank'?'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/%3E':u?.dataUrl||'';}
+function mapViewport(){const u=project.underlay,{width,height}=stageSize(),e=u.georeference.extent,m=u.metresPerPixel;return {easting:e.xmin+(width/2-view.x)/view.scale*m,northing:e.ymax-(height/2-view.y)/view.scale*m,resolution:m/view.scale,width,height};}
+function mapFeedback(state){$('map-feedback').hidden=!state.loading&&!state.failed;const text=state.failed?'Imagery unavailable':state.loading?'Loading imagery…':'';if($('map-feedback-text').textContent!==text)$('map-feedback-text').textContent=text;$('retry-map').hidden=!state.failed;}
+function syncLiveMap(){
+ const target=$('live-basemap');target.hidden=!isLiveMap();$('canvas-stage').classList.toggle('has-live-map',!!isLiveMap());
+ if(!isLiveMap()){liveEngineKey=null;liveEngine?.dispose();liveEngine=null;liveEnginePromise=null;liveEngineFailed=false;target.replaceChildren();$('map-feedback').hidden=true;return;}
+ project.mapView=mapViewport();const key=`${project.id}:${project.underlay.georeference.epsg}:${PORTAL_ITEM_ID}`;
+ if(key!==liveEngineKey){liveEngineKey=key;liveEngine?.dispose();liveEngine=null;liveEnginePromise=null;liveEngineFailed=false;target.replaceChildren();}
+ if(!liveEnginePromise&&!liveEngineFailed){
+  const mount=document.createElement('div');mount.style.cssText='width:100%;height:100%';mount.dataset.liveImagery='true';target.replaceChildren(mount);mapFeedback({loading:true,failed:false});
+  liveEnginePromise=createLiveBasemap({target:mount,epsg:project.underlay.georeference.epsg,onState:state=>{if(key===liveEngineKey)mapFeedback(state);}}).then(engine=>{if(key!==liveEngineKey){engine.dispose();return null;}liveEngine=engine;const v=mapViewport();engine.setViewport({center:[v.easting,v.northing],resolution:v.resolution});return engine;}).catch(()=>{if(key===liveEngineKey){liveEngineFailed=true;liveEnginePromise=null;mapFeedback({loading:false,failed:true});}return null;});
+ }
+ if(liveEngine){const v=project.mapView;liveEngine.setViewport({center:[v.easting,v.northing],resolution:v.resolution});}
+}
+$('retry-map').onclick=()=>{if(liveEngine)liveEngine.retry();else{liveEngineFailed=false;syncLiveMap();}};
+function restoreMapView(saved){if(!isLiveMap()||!saved)return;const u=project.underlay,e=u.georeference.extent,m=u.metresPerPixel,size=stageSize();view.scale=m/saved.resolution;view.x=size.width/2-(saved.easting-e.xmin)/m*view.scale;view.y=size.height/2-(e.ymax-saved.northing)/m*view.scale;fitMode=false;renderCanvas();}
 function setTool(next){if(next==='scale'&&project.underlay?.georeference&&!project.overlay){toast('Basemap scale is set by its MGA2020 grid. Adjust image size in overlay settings.');return;}tool=next;linkStart=null;scalePoints=[];renderTools();renderCanvas();if(next==='scale'&&project.underlay)notice(project.overlay?'Select two points on the uploaded image.':'Select two points with a known distance.');else notice(null);}
 function renderTools(){document.querySelectorAll('[data-tool]').forEach(b=>{const active=b.dataset.tool===tool;b.classList.toggle('selected',active);b.setAttribute('aria-pressed',String(active));});document.querySelectorAll('[data-density]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.density===density)));$('canvas-stage').dataset.mode=tool;const label={select:'Select and move',scan:`Place scan · ${density[0].toUpperCase()+density.slice(1)}`,target:'Place target',link:linkStart?'Select second station':'Link two stations',scale:'Set scale · two points',pan:'Pan plan',overlay:'Move image overlay'}[tool];$('tool-status').innerHTML=tool==='scan'?`<span class="density-dot ${density}"></span>${label}`:label;}
 function notice(text,action){const el=$('canvas-notice');el.hidden=!text;el.replaceChildren();if(text){el.append(document.createTextNode(text));if(action){const b=document.createElement('button');b.className='text-button';b.textContent=action.label;b.onclick=action.run;el.append(b);}}}
@@ -29,7 +47,7 @@ function render(list=true){
  const e=estimate(project),u=project.underlay;
  if(document.activeElement!==$('project-title'))$('project-title').value=project.title;
  $('sample-badge').hidden=!project.sample;
- $('underlay-name').textContent=u?.name||'No underlay';$('underlay-detail').textContent=u?`${u.width} × ${u.height} px${u.page?` · Page ${u.page}`:''}`:'PDF, PNG, JPG or WEBP';
+ $('underlay-name').textContent=u?.name||'No underlay';$('underlay-detail').textContent=u?(isLiveMap()?'Live imagery · MGA2020':`${u.width} × ${u.height} px${u.page?` · Page ${u.page}`:''}`):'PDF, PNG, JPG or WEBP';
  $('scale-status').classList.toggle('unscaled',!u?.metresPerPixel);$('scale-status').innerHTML=`${icon(u?.metresPerPixel?'check':'ruler')}${u?.metresPerPixel?'To scale':'Not to scale'}`;
  $('rotate-plan').disabled=!u||u.kind==='six';$('calibrate-plan').disabled=!u;
  for(const d of DENSITIES){const input=$(`time-${d}`);if(document.activeElement!==input&&!invalidTimes.has(d))input.value=inputDuration(project.profiles[d]);input.setAttribute('aria-invalid',String(invalidTimes.has(d)));$(`count-${d}`).textContent=e.counts[d];$(`subtotal-${d}`).textContent=formatDuration(e.subtotals[d]);}
@@ -66,18 +84,18 @@ function renderSelection(){
  $('coordinate-reference').textContent=c?`MGA2020 · Zone ${c.zone} · EPSG:${c.epsg}`:'Local image coordinates';
  for(const axis of ['x','y']){const input=$(`station-${axis}`),extent=u.georeference?.extent;
   if(document.activeElement!==input)input.value=(c?(axis==='x'?c.easting:c.northing):station[axis]*f).toFixed(c||u.metresPerPixel?2:1);
-  input.min=extent?(axis==='x'?extent.xmin:extent.ymin):0;input.max=extent?(axis==='x'?extent.xmax:extent.ymax):u[axis==='x'?'width':'height']*f;
+  input.min=isLiveMap()?(axis==='x'?100000:0):extent?(axis==='x'?extent.xmin:extent.ymin):0;input.max=isLiveMap()?(axis==='x'?900000:10000000):extent?(axis==='x'?extent.xmax:extent.ymax):u[axis==='x'?'width':'height']*f;
  }
  $('selection-density').value=station.density;$('selection-density').disabled=station.kind==='target';if(document.activeElement!==$('station-note'))$('station-note').value=station.note;
 }
 function node(name,attrs={}){const el=document.createElementNS(svgNS,name);for(const[k,v]of Object.entries(attrs))el.setAttribute(k,v);return el;}
 function renderCanvas(){
- const u=project.underlay;const vp=$('viewport');vp.setAttribute('transform',`translate(${view.x} ${view.y}) scale(${view.scale})`);$('paper').setAttribute('width',u?.width||0);$('paper').setAttribute('height',u?.height||0);
+ const u=project.underlay;syncLiveMap();const vp=$('viewport');vp.setAttribute('transform',`translate(${view.x} ${view.y}) scale(${view.scale})`);$('paper').style.display=isLiveMap()?'none':'';$('underlay-image').style.display=isLiveMap()?'none':'';$('overlay-clip').setAttribute('clip-path',isLiveMap()?'none':'url(#image-clip)');$('paper').setAttribute('width',u?.width||0);$('paper').setAttribute('height',u?.height||0);
  $('image-clip-rect').setAttribute('width',u?.width||0);$('image-clip-rect').setAttribute('height',u?.height||0);
  const overlay=project.overlay,layer=$('image-overlay');layer.style.display=overlay?'':'none';
  if(overlay){const height=overlay.size*overlay.height/overlay.width;layer.setAttribute('transform',`translate(${overlay.x} ${overlay.y}) rotate(${overlay.rotation} ${overlay.size/2} ${height/2})`);layer.setAttribute('opacity',overlay.opacity);const image=$('overlay-image');if(image.getAttribute('href')!==overlay.dataUrl)image.setAttribute('href',overlay.dataUrl);image.setAttribute('width',overlay.size);image.setAttribute('height',height);const outline=$('overlay-outline');outline.setAttribute('width',overlay.size);outline.setAttribute('height',height);outline.setAttribute('stroke-width',2/view.scale);outline.style.display=tool==='overlay'?'':'none';}
  const bar=niceScale(u?.metresPerPixel,130/view.scale);$('canvas-scale').hidden=!u;$('scale-bar').hidden=!bar;$('scale-missing').hidden=!!bar;$('canvas-set-scale').hidden=!!bar;if(bar){$('scale-bar-line').style.width=`${bar.pixels*view.scale}px`;$('scale-bar-label').textContent=bar.label;}
- const img=$('underlay-image'),src=imageSource();if(img.getAttribute('href')!==src)img.setAttribute('href',src);img.setAttribute('width',u?.width||0);img.setAttribute('height',u?.height||0);
+ const img=$('underlay-image'),src=imageSource();if(isLiveMap())img.removeAttribute('href');else if(img.getAttribute('href')!==src)img.setAttribute('href',src);img.setAttribute('width',u?.width||0);img.setAttribute('height',u?.height||0);
  const links=$('plan-links');links.replaceChildren();if(project.display.links)for(const l of project.links){const a=project.stations.find(s=>s.id===l.from),b=project.stations.find(s=>s.id===l.to);if(a&&b)links.append(node('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:'#7f9dc9','stroke-width':1.2/view.scale,'stroke-dasharray':`${4/view.scale} ${4/view.scale}`,opacity:.7}));}
  const stations=$('plan-stations');stations.replaceChildren();const r=project.display.markerSize/view.scale;
  for(const s of project.stations){const g=node('g',{class:'station-marker','data-station-id':s.id,transform:`translate(${s.x} ${s.y}) scale(${r})`,'aria-selected':s.id===selected||s.id===linkStart?'true':'false'});const title=node('title');title.textContent=`${s.kind==='target'?'Target':'Station'} ${stationLabel(s)}${s.note?` — ${s.note}`:''}`;g.append(title,node('circle',{class:'selection-ring',r:22,fill:'#dbe8ff','fill-opacity':.9,stroke:'#285cda','stroke-width':1.5}));const color=COLORS[s.kind==='target'?'target':s.density];
@@ -88,29 +106,37 @@ function renderCanvas(){
  $('zoom-level').title=`${Math.round(view.scale*100)}% image scale`;
 }
 function stageSize(){const r=$('canvas-stage').getBoundingClientRect();return{width:r.width,height:r.height};}
-function fitPlan(){const u=project.underlay;if(!u){renderCanvas();return;}const{width,height}=stageSize();if(width<1||height<1)return;const pad=width<600?34:96;fitScale=Math.max(.01,Math.min((width-pad)/u.width,(height-(width<600?140:132))/u.height));view={scale:fitScale,x:(width-u.width*fitScale)/2,y:(height-u.height*fitScale)/2-4};fitMode=true;renderCanvas();}
-function zoom(factor,point){if(!project.underlay)return;const size=stageSize();const p=point||{x:size.width/2,y:size.height/2};const next=Math.max(fitScale*.25,Math.min(fitScale*16,view.scale*factor));view.x=p.x-(p.x-view.x)*next/view.scale;view.y=p.y-(p.y-view.y)*next/view.scale;view.scale=next;fitMode=false;renderCanvas();}
+function fitPlan(){
+ const u=project.underlay;if(!u){renderCanvas();return;}const{width,height}=stageSize();if(width<1||height<1)return;
+ if(isLiveMap()){
+  const e=(project.stations.length||project.overlay)?imageryExportExtent(project):u.georeference.extent,m=u.metresPerPixel,resolution=Math.max((e.xmax-e.xmin)/width,(e.ymax-e.ymin)/height),cx=(e.xmin+e.xmax)/2,cy=(e.ymin+e.ymax)/2;
+  fitScale=m/resolution;view={scale:fitScale,x:width/2-(cx-u.georeference.extent.xmin)/m*fitScale,y:height/2-(u.georeference.extent.ymax-cy)/m*fitScale};
+ }else{const pad=width<600?34:96;fitScale=Math.max(.01,Math.min((width-pad)/u.width,(height-(width<600?140:132))/u.height));view={scale:fitScale,x:(width-u.width*fitScale)/2,y:(height-u.height*fitScale)/2-4};}
+ fitMode=true;renderCanvas();
+}
+function zoom(factor,point){if(!project.underlay)return;const size=stageSize();const p=point||{x:size.width/2,y:size.height/2};const next=isLiveMap()?Math.max(project.underlay.metresPerPixel/1000,Math.min(project.underlay.metresPerPixel/.015,view.scale*factor)):Math.max(fitScale*.25,Math.min(fitScale*16,view.scale*factor));view.x=p.x-(p.x-view.x)*next/view.scale;view.y=p.y-(p.y-view.y)*next/view.scale;view.scale=next;fitMode=false;renderCanvas();if(isLiveMap())saveDraft();}
 function worldPoint(e){const rect=$('plan-svg').getBoundingClientRect();return{x:(e.clientX-rect.left-view.x)/view.scale,y:(e.clientY-rect.top-view.y)/view.scale};}
-function inPlan(pt){const u=project.underlay;return u&&pt.x>=0&&pt.y>=0&&pt.x<=u.width&&pt.y<=u.height;}
+function inPlan(pt){return validPosition(project,pt.x,pt.y);}
 function canPlace(){if(!project.underlay){$('underlay-input').click();return false;}return true;}
 function place(pt,kind='scan'){if(!canPlace()||!inPlan(pt))return;let s;try{commit(p=>{s=addStation(p,pt.x,pt.y,kind,density);});}catch(error){toast(error.message,true);return;}selected=s.id;render();announce(`${kind==='scan'?'Station':'Target'} ${stationLabel(s)} added. ${formatDuration(estimate(project).total)} estimated.`);}
 
 $('plan-svg').addEventListener('pointerdown',e=>{
  if(pointer || (e.button!==0&&e.button!==1))return;const id=e.target.closest('[data-station-id]')?.dataset.stationId;
  const pan=tool==='pan'||e.button===1||spaceHeld;
- pointer={pointerId:e.pointerId,id,overlay:tool==='overlay'&&!!project.overlay,pan,startX:e.clientX,startY:e.clientY,startView:{...view},before:snapshot(project),moved:false,point:worldPoint(e)};
+ pointer={pointerId:e.pointerId,id,mayPan:isLiveMap()&&!id&&['scan','target','select','link'].includes(tool),overlay:tool==='overlay'&&!!project.overlay,pan,startX:e.clientX,startY:e.clientY,startView:{...view},before:snapshot(project),moved:false,point:worldPoint(e)};
  if(id&&!pan&&!pointer.overlay){selected=id;render();}
  $('plan-svg').setPointerCapture(e.pointerId);e.preventDefault();
 });
 $('plan-svg').addEventListener('pointermove',e=>{
  if(!pointer||pointer.pointerId!==e.pointerId)return;const dx=e.clientX-pointer.startX,dy=e.clientY-pointer.startY;if(Math.abs(dx)+Math.abs(dy)>4)pointer.moved=true;
+ if(pointer.mayPan&&pointer.moved)pointer.pan=true;
  if(pointer.pan){view.x=pointer.startView.x+dx;view.y=pointer.startView.y+dy;fitMode=false;renderCanvas();return;}
- if(pointer.overlay&&pointer.moved){project.overlay.x=Math.max(-project.underlay.width*20,Math.min(project.underlay.width*20,pointer.before.overlay.x+dx/view.scale));project.overlay.y=Math.max(-project.underlay.height*20,Math.min(project.underlay.height*20,pointer.before.overlay.y+dy/view.scale));renderCanvas();return;}
- if(pointer.id&&pointer.moved&&['select','scan','target'].includes(tool)){const s=project.stations.find(s=>s.id===pointer.id),start=pointer.before.stations.find(s=>s.id===pointer.id);if(s){s.x=Math.max(0,Math.min(project.underlay.width,start.x+dx/view.scale));s.y=Math.max(0,Math.min(project.underlay.height,start.y+dy/view.scale));updateStationCoordinates(project);renderCanvas();renderSelection();}}
+ if(pointer.overlay&&pointer.moved){const limitX=isLiveMap()?1e9:project.underlay.width*20,limitY=isLiveMap()?1e9:project.underlay.height*20;project.overlay.x=Math.max(-limitX,Math.min(limitX,pointer.before.overlay.x+dx/view.scale));project.overlay.y=Math.max(-limitY,Math.min(limitY,pointer.before.overlay.y+dy/view.scale));renderCanvas();return;}
+ if(pointer.id&&pointer.moved&&['select','scan','target'].includes(tool)){const s=project.stations.find(s=>s.id===pointer.id),start=pointer.before.stations.find(s=>s.id===pointer.id);if(s){s.x=Math.max(positionBounds(project).xmin,Math.min(positionBounds(project).xmax,start.x+dx/view.scale));s.y=Math.max(positionBounds(project).ymin,Math.min(positionBounds(project).ymax,start.y+dy/view.scale));updateStationCoordinates(project);renderCanvas();renderSelection();}}
 });
 $('plan-svg').addEventListener('pointerup',e=>{
  if(!pointer||pointer.pointerId!==e.pointerId)return;const current=pointer;pointer=null;if($('plan-svg').hasPointerCapture(e.pointerId))$('plan-svg').releasePointerCapture(e.pointerId);
- if(current.moved){if(current.overlay){historyPush(current.before);render();saveDraft();return;}if(current.id&&!current.pan&&['select','scan','target'].includes(tool)){historyPush(current.before);render();saveDraft();}return;}
+ if(current.moved){if(current.pan){if(isLiveMap())saveDraft();return;}if(current.overlay){historyPush(current.before);render();saveDraft();return;}if(current.id&&!current.pan&&['select','scan','target'].includes(tool)){historyPush(current.before);render();saveDraft();}return;}
  if(current.pan)return;const pt=worldPoint(e);
  if(current.id){if(tool==='link'){if(!linkStart){linkStart=current.id;notice('Select the second station.');}else if(linkStart!==current.id){const from=linkStart,to=current.id;toggleLink(from,to);linkStart=null;notice(null);}renderTools();renderCanvas();}return;}
  if(tool==='select'){selected=null;render();return;}
@@ -128,10 +154,10 @@ document.addEventListener('keydown',e=>{
  if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)||$('modal').open)return;
  if(e.ctrlKey||e.metaKey){if(e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();}if(e.key.toLowerCase()==='y'){e.preventDefault();redo();}if(e.key.toLowerCase()==='s'){e.preventDefault();saveProject();}if(e.key.toLowerCase()==='o'){e.preventDefault();$('project-input').click();}return;}
  const keys={v:'select',s:'scan',t:'target',l:'link',c:'scale',h:'pan'};if(keys[e.key.toLowerCase()])setTool(keys[e.key.toLowerCase()]);
- if(e.key.toLowerCase()==='f')fitPlan();if(e.key==='?')openHelp();
+ if(e.key.toLowerCase()==='f'){fitPlan();if(isLiveMap())saveDraft();}if(e.key==='?')openHelp();
  if(e.key===' '&&!e.target.closest('button,a,summary')){spaceHeld=true;e.preventDefault();}
  if(['Delete','Backspace'].includes(e.key)&&selected){e.preventDefault();removeSelected();}
- if(e.key.startsWith('Arrow')&&selected){e.preventDefault();const step=(e.shiftKey?10:1)/view.scale;commit(p=>{const s=p.stations.find(s=>s.id===selected);s.x=Math.max(0,Math.min(p.underlay.width,s.x+(e.key==='ArrowRight'?step:e.key==='ArrowLeft'?-step:0)));s.y=Math.max(0,Math.min(p.underlay.height,s.y+(e.key==='ArrowDown'?step:e.key==='ArrowUp'?-step:0)));});}
+ if(e.key.startsWith('Arrow')&&selected){e.preventDefault();const step=(e.shiftKey?10:1)/view.scale;commit(p=>{const s=p.stations.find(s=>s.id===selected);s.x=Math.max(positionBounds(p).xmin,Math.min(positionBounds(p).xmax,s.x+(e.key==='ArrowRight'?step:e.key==='ArrowLeft'?-step:0)));s.y=Math.max(positionBounds(p).ymin,Math.min(positionBounds(p).ymax,s.y+(e.key==='ArrowDown'?step:e.key==='ArrowUp'?-step:0)));});}
 });
 document.addEventListener('keyup',e=>{if(e.key===' ')spaceHeld=false;});
 document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
@@ -143,15 +169,15 @@ for(const key of [...DENSITIES,'setup','target']){
 }
 $('project-title').addEventListener('input',()=>{project.title=$('project-title').value||'Untitled plan';saveDraft();});
 $('project-title').addEventListener('blur',()=>{if(!$('project-title').value.trim()){$('project-title').value='Untitled plan';project.title='Untitled plan';}});
-$('undo').onclick=undo;$('redo').onclick=redo;$('fit-plan').onclick=fitPlan;$('zoom-in').onclick=()=>zoom(1.25);$('zoom-out').onclick=()=>zoom(.8);
-function addAtCenter(kind='scan'){if(!canPlace())return;const size=stageSize();place({x:Math.max(0,Math.min(project.underlay.width,(size.width/2-view.x)/view.scale)),y:Math.max(0,Math.min(project.underlay.height,(size.height/2-view.y)/view.scale))},kind);setTool('select');}
+$('undo').onclick=undo;$('redo').onclick=redo;$('fit-plan').onclick=()=>{fitPlan();if(isLiveMap())saveDraft();};$('zoom-in').onclick=()=>zoom(1.25);$('zoom-out').onclick=()=>zoom(.8);
+function addAtCenter(kind='scan'){if(!canPlace())return;const size=stageSize();place({x:Math.max(positionBounds(project).xmin,Math.min(positionBounds(project).xmax,(size.width/2-view.x)/view.scale)),y:Math.max(positionBounds(project).ymin,Math.min(positionBounds(project).ymax,(size.height/2-view.y)/view.scale))},kind);setTool('select');}
 $('add-center').onclick=()=>addAtCenter();$('add-target').onclick=()=>addAtCenter('target');
 function removeSelected(){if(!selected)return;const label=stationLabel(project.stations.find(s=>s.id===selected));commit(p=>deleteStation(p,selected));announce(`Station ${label} deleted. Undo is available.`);}
 $('delete-selected').onclick=removeSelected;
 $('selection-density').onchange=()=>commit(p=>p.stations.find(s=>s.id===selected).density=$('selection-density').value);
 for(const axis of ['x','y'])$(`station-${axis}`).onchange=()=>{
  const input=$(`station-${axis}`),value=Number(input.value),pixel=coordinateToPixel(project.underlay,axis,value),max=project.underlay[axis==='x'?'width':'height'];
- if(!input.value||!Number.isFinite(pixel)||pixel<0||pixel>max){toast('Enter a coordinate within the plan.',true);input.blur();renderSelection();return;}
+ const bounds=positionBounds(project);if(!input.value||!Number.isFinite(pixel)||pixel<bounds[axis==='x'?'xmin':'ymin']||pixel>bounds[axis==='x'?'xmax':'ymax']){toast('Enter a coordinate within the plan.',true);input.blur();renderSelection();return;}
  commit(p=>p.stations.find(s=>s.id===selected)[axis]=pixel);
 };
 $('station-note').onchange=()=>{if(selected)commit(p=>p.stations.find(s=>s.id===selected).note=$('station-note').value);};
@@ -208,14 +234,14 @@ $('edit-links').onclick=()=>{
 };
 $('project-details').onclick=()=>showModal('Project details',`<form class="modal-form"><label>Project name<input name="title" value="${escapeHTML(project.title)}" maxlength="100" required></label><label>Site / location<input name="site" value="${escapeHTML(project.site)}" maxlength="200"></label><label>Revision<input name="revision" value="${escapeHTML(project.revision)}" maxlength="20" required></label>${actions()}</form>`,data=>{commit(p=>{p.title=data.get('title').trim()||'Untitled plan';p.site=data.get('site');p.revision=data.get('revision');});$('modal').close();});
 $('clear-stations').onclick=()=>{if(!project.stations.length)return;confirm('Clear all stations?',`${project.stations.length} stations and targets will be removed. You can undo this.`,()=>commit(p=>{p.stations=[];p.links=[];}),'Clear stations');};
-function replaceProject(next){commit(()=>{project=next;selected=null;invalidTimes.clear();notice(null);},{fit:true});}
+function replaceProject(next){upgradeMap(next);const savedView=next.mapView;commit(()=>{project=next;selected=null;invalidTimes.clear();notice(null);},{fit:true});restoreMapView(savedView);}
 $('new-project').onclick=()=>confirm('Start a new plan?','This replaces the current device draft. Save a project file to keep a separate copy. You can undo this.',()=>replaceProject(newProject()),'New plan');
 $('load-sample').onclick=()=>replaceProject(newProject(true));
 function saveProject(){if(invalidTimes.size){toast('Correct the duration fields before saving.',true);return;}downloadFile(JSON.stringify(serializable(project),null,2),`${safeName(project.title)}.planscan.json`,'application/json');toast('Project downloaded.');}
 function safeName(name){return name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,80)||'scan-plan';}
 $('save-project').onclick=saveProject;$('open-project').onclick=()=>$('project-input').click();
 $('project-input').onchange=async e=>{const file=e.target.files[0];if(file)await loadProject(file);e.target.value='';};
-async function loadProject(file){try{if(file.size>LIMITS.projectBytes)throw new Error('Choose a project smaller than 96 MB.');const raw=JSON.parse(await file.text());let next;if([2,3].includes(raw.version))next=normalizeProject(raw);else if(Array.isArray(raw.objects))next=importLegacy(raw);else throw new Error('Choose a PlanScan project file.');replaceProject(next);toast([2,3].includes(raw.version)?'Project opened.':'Legacy plan imported. Review scan times and links.');toggleSettings(false);}catch(err){toast(err instanceof SyntaxError?'This file is not a valid PlanScan project.':err.message,true);}}
+async function loadProject(file){try{if(file.size>LIMITS.projectBytes)throw new Error('Choose a project smaller than 96 MB.');const raw=JSON.parse(await file.text());let next;if([2,3,4].includes(raw.version))next=normalizeProject(raw);else if(Array.isArray(raw.objects))next=importLegacy(raw);else throw new Error('Choose a PlanScan project file.');replaceProject(next);toast([2,3,4].includes(raw.version)?'Project opened.':'Legacy plan imported. Review scan times and links.');toggleSettings(false);}catch(err){toast(err instanceof SyntaxError?'This file is not a valid PlanScan project.':err.message,true);}}
 function importLegacy(raw){const bg=raw.backgroundImage;if(!bg||!/^data:image\/(?:png|jpeg|webp);base64,/.test(bg.src||''))throw new Error('This legacy template has no supported underlay image.');const p=newProject();p.title='Imported plan';p.underlay={kind:'image',name:'Legacy underlay',width:bg.width,height:bg.height,dataUrl:bg.src,metresPerPixel:null,unit:'m',source:'Legacy template',page:null};const angle=(bg.angle||0)*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle),used=new Set();for(const o of raw.objects){if(o.type!=='group')continue;const objects=o.objects||[],tri=objects.some(x=>x.type==='triangle'),target=objects.some(x=>x.type==='circle');if(!tri&&!target)continue;const dx=o.left-(bg.left||0),dy=o.top-(bg.top||0),x=(c*dx+s*dy)/(bg.scaleX||1)+(bg.originX==='center'?bg.width/2:0),y=(-s*dx+c*dy)/(bg.scaleY||1)+(bg.originY==='center'?bg.height/2:0);const st=addStation(p,Math.max(0,Math.min(bg.width,x)),Math.max(0,Math.min(bg.height,y)),target?'target':'scan',o.fill==='#5FFBF1'?'low':o.fill==='#ec74ff'?'high':'medium');const label=Number(String(objects.find(x=>x.text)?.text||'').replace(/\D/g,''));if(label>0&&!used.has(`${st.kind}:${label}`))st.number=label;used.add(`${st.kind}:${st.number}`);}p.nextStationNumber=Math.max(1,...p.stations.filter(s=>s.kind==='scan').map(s=>s.number+1));p.nextTargetNumber=Math.max(1,...p.stations.filter(s=>s.kind==='target').map(s=>s.number+1));return normalizeProject(p);}
 
 ['upload-plan','empty-upload'].forEach(id=>$(id).onclick=()=>$('underlay-input').click());
@@ -228,10 +254,10 @@ async function applyUnderlay(underlay,{overlayImage=null}={}){
  if(project.stations.length)confirm('Replace underlay?','Existing stations will be cleared. You can undo this.',run,'Replace underlay');else run();
 }
 function chooseImagePlacement(image){
- showModal('Place uploaded plan',`<form class="modal-form"><p class="modal-copy">${escapeHTML(image.name)}</p><label>Background<select name="background"><option value="blank">Blank canvas</option><option value="aerial" ${project.underlay?.kind==='six'?'selected':''}>SIX Maps basemap</option></select></label><p class="form-hint">A basemap overlay can be moved, rotated, resized and faded to align with the site.</p>${formError()}${actions('Place image')}</form>`,async data=>{
+ showModal('Place uploaded plan',`<form class="modal-form"><p class="modal-copy">${escapeHTML(image.name)}</p><label>Background<select name="background"><option value="blank">Blank canvas</option><option value="aerial" ${project.underlay?.kind==='six'?'selected':''}>NSW Imagery Basemap</option></select></label><p class="form-hint">A basemap overlay can be moved, rotated, resized and faded to align with the site.</p>${formError()}${actions('Place image')}</form>`,async data=>{
   $('modal').close();if(data.get('background')==='blank'){await applyUnderlay(image);return;}
   if(project.underlay?.kind!=='six'){openMap(image);return;}
-  const place=()=>{commit(p=>p.overlay=newOverlay(p.underlay,image));toggleSettings(false);openOverlaySettings();};
+  const place=()=>{commit(p=>{p.overlay=newOverlay(p.underlay,image);if(isLiveMap()){const size=stageSize();p.overlay.x=(size.width/2-view.x)/view.scale-p.overlay.size/2;p.overlay.y=(size.height/2-view.y)/view.scale-p.overlay.size*p.overlay.height/p.overlay.width/2;}});toggleSettings(false);openOverlaySettings();};
   if(project.overlay)confirm('Replace image overlay?','The existing image overlay will be replaced. Stations will stay in place. You can undo this.',place,'Replace image');else place();
  });
 }
@@ -239,7 +265,7 @@ function openOverlaySettings(){
  const o=project.overlay,u=project.underlay;if(!o||!u)return;const f=coordinateFactor(u);
  showModal('Adjust image overlay',`<form class="modal-form"><p class="secondary">${escapeHTML(o.name)}</p><div class="form-row"><label>Left (m)<input name="x" type="number" step="any" value="${(o.x*f).toFixed(3)}" required></label><label>Top (m)<input name="y" type="number" step="any" value="${(o.y*f).toFixed(3)}" required></label></div><div class="form-row"><label>Image width (m)<input name="size" type="number" step="any" min="0.001" value="${(o.size*f).toFixed(3)}" required></label><label>Rotation (degrees)<input name="rotation" type="number" step="any" min="-360" max="360" value="${o.rotation}" required></label></div><label>Opacity (%)<input name="opacity" type="number" min="0" max="100" step="1" value="${Math.round(o.opacity*100)}" required></label><button type="button" class="text-button" id="move-overlay">Move image on plan</button>${formError()}${actions('Apply image')}</form>`,data=>{
   const x=Number(data.get('x'))/f,y=Number(data.get('y'))/f,size=Number(data.get('size'))/f,rotation=Number(data.get('rotation')),opacity=Number(data.get('opacity'))/100;
-  if(![x,y,size,rotation,opacity].every(Number.isFinite)||size<=0||size>u.width*20||Math.abs(x)>u.width*20||Math.abs(y)>u.height*20||opacity<0||opacity>1)throw new Error('Enter a valid image position, width and opacity.');
+  if(![x,y,size,rotation,opacity].every(Number.isFinite)||size<=0||size>u.width*20||Math.abs(x)>(isLiveMap()?1e9:u.width*20)||Math.abs(y)>(isLiveMap()?1e9:u.height*20)||opacity<0||opacity>1)throw new Error('Enter a valid image position, width and opacity.');
   commit(p=>Object.assign(p.overlay,{x,y,size,rotation,opacity,calibrated:p.overlay.calibrated||Math.abs(p.overlay.size-size)>.01}));$('modal').close();
  });
  $('move-overlay').onclick=()=>{$('modal').close();toggleSettings(false);setTool('overlay');};
@@ -274,12 +300,12 @@ $('rotate-plan').onclick=async()=>{const u=project.underlay;if(!u||u.kind==='six
 ['six-map','empty-map'].forEach(id=>$(id).onclick=()=>openMap());
 function openMap(overlayImage=null){
  const controller=new AbortController(),map=project.underlay?.kind==='six'?project.underlay.map:null;
- showModal('SIX Maps basemap',`<form class="modal-form"><div class="address-search"><label>NSW address<input id="aerial-address" maxlength="150" placeholder="Street number, street and suburb" autocomplete="off"></label><button class="button" type="button" id="find-address">Find address</button></div><label id="address-results-label" hidden>Choose address<select id="address-results"></select></label><p class="form-hint" id="address-status" role="status"></p><div class="form-row"><label>Latitude (GDA2020)<input name="latitude" type="number" step="any" min="-39" max="-28" value="${map?.latitude||-33.8568}" required></label><label>Longitude (GDA2020)<input name="longitude" type="number" step="any" min="140" max="160" value="${map?.longitude||151.2153}" required></label></div><label>Map width (m)<input name="widthMetres" type="number" min="25" max="20000" step="any" value="${map?.widthMetres||500}" required></label><p class="form-hint">NSW Base Map WMTS. Stations use MGA2020 coordinates.</p>${formError()}${actions('Load basemap')}</form>`,async(data,form)=>{
+ showModal('NSW Imagery Basemap',`<form class="modal-form"><div class="address-search"><label>NSW address<input id="aerial-address" maxlength="150" placeholder="Street number, street and suburb" autocomplete="off"></label><button class="button" type="button" id="find-address">Find address</button></div><label id="address-results-label" hidden>Choose address<select id="address-results"></select></label><p class="form-hint" id="address-status" role="status"></p><div class="form-row"><label>Latitude (GDA2020)<input name="latitude" type="number" step="any" min="-39" max="-28" value="${map?.latitude||-33.8568}" required></label><label>Longitude (GDA2020)<input name="longitude" type="number" step="any" min="140" max="160" value="${map?.longitude||151.2153}" required></label></div><label>Initial view width (m)<input name="widthMetres" type="number" min="25" max="20000" step="any" value="${map?.widthMetres||500}" required></label><p class="form-hint">Live NSW imagery. Pan and zoom to explore. Stations use MGA2020 coordinates.</p>${formError()}${actions('Load basemap')}</form>`,async(data,form)=>{
   const button=form.querySelector('[type=submit]');button.disabled=true;button.innerHTML='<span class="loading-spinner"></span>Loading basemap…';
   try{
    const params={latitude:Number(data.get('latitude')),longitude:Number(data.get('longitude')),widthMetres:Number(data.get('widthMetres'))};
-   const result=await loadSixWmts(params,{signal:controller.signal,onProgress:text=>{button.textContent=text;}});if(!form.isConnected||!$('modal').open)return;
-   const underlay={kind:'six',name:'SIX Maps basemap',width:result.width,height:result.height,dataUrl:result.dataUrl,metresPerPixel:result.metresPerPixel,unit:'m',source:'SIX Maps NSW Base Map · WMTS',page:null,map:{...params,wmts:result.wmts},georeference:result.georeference};
+   const result=await loadSixBasemap(params,{signal:controller.signal});if(!form.isConnected||!$('modal').open)return;
+   const underlay={kind:'six',name:'NSW Imagery Basemap',width:result.width,height:result.height,dataUrl:null,metresPerPixel:result.metresPerPixel,unit:'m',source:IMAGERY_ATTRIBUTION,page:null,map:{...params,live:true,portalItemId:PORTAL_ITEM_ID,serviceUrl:IMAGERY_SERVICE},georeference:result.georeference};
    // Use the project validator for provider metadata before changing the current plan.
    const checked=normalizeProject({...newProject(),underlay}).underlay;
    const previous=project.underlay;
@@ -299,10 +325,16 @@ function openMap(overlayImage=null){
 }
 
 $('export-plan').onclick=openExport;
-async function openExport(){if(invalidTimes.size){toast('Correct the duration fields before exporting.',true);return;}if(!project.underlay)return;if(!imageSource())return;
- showModal('Export QA plan',`<form class="modal-form"><div class="form-row"><label>Format<select name="format"><option value="pdf">PDF</option><option value="png">PNG image</option></select></label><label>Paper<select name="paper"><option value="a4">A4</option><option value="a3">A3</option></select></label></div><label>Orientation<select name="orientation"><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select></label><div class="export-preview" id="qa-preview"><span class="secondary">Preparing preview…</span></div><div class="export-summary"><span>${estimate(project).count} stations</span><span>${formatDuration(estimate(project).total)}</span><span>Rev ${escapeHTML(project.revision)}</span></div>${!project.underlay.metresPerPixel?'<p class="form-hint">Not to scale · set a known distance to add a scale bar.</p>':''}${formError()}${actions('Download')}</form>`,async(data,form)=>{const b=form.querySelector('[type=submit]');b.disabled=true;try{project.output={paper:data.get('paper'),orientation:data.get('orientation'),format:data.get('format')};saveDraft();const output=await createQA(project,{orientation:data.get('orientation'),paper:data.get('paper')});await saveQA(output,project,{format:data.get('format'),orientation:data.get('orientation'),paper:data.get('paper')});$('modal').close();toast('QA plan downloaded.');}finally{b.disabled=false;}});
+async function openExport(){if(invalidTimes.size){toast('Correct the duration fields before exporting.',true);return;}if(!project.underlay)return;if(!isLiveMap()&&!imageSource())return;
+ let qaProjectPromise;
+ async function qaProject(){
+  if(!qaProjectPromise){const saved=snapshot(project);qaProjectPromise=!isLiveMap()?Promise.resolve(saved):(async()=>{const engine=liveEngine||await liveEnginePromise;if(!engine)throw new Error('Imagery is unavailable. Retry the map before exporting.');const frame=await engine.snapshot(imageryExportExtent(saved));return projectForMapSnapshot(saved,frame);})();}
+  return qaProjectPromise;
+ }
+
+ showModal('Export QA plan',`<form class="modal-form"><div class="form-row"><label>Format<select name="format"><option value="pdf">PDF</option><option value="png">PNG image</option></select></label><label>Paper<select name="paper"><option value="a4">A4</option><option value="a3">A3</option></select></label></div><label>Orientation<select name="orientation"><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select></label><div class="export-preview" id="qa-preview"><span class="secondary">Preparing preview…</span></div><div class="export-summary"><span>${estimate(project).count} stations</span><span>${formatDuration(estimate(project).total)}</span><span>Rev ${escapeHTML(project.revision)}</span></div>${isLiveMap()?'<p class="form-hint">Export fits all stations and the uploaded overlay.</p>':''}${!project.underlay.metresPerPixel?'<p class="form-hint">Not to scale · set a known distance to add a scale bar.</p>':''}${formError()}${actions('Download')}</form>`,async(data,form)=>{const b=form.querySelector('[type=submit]');b.disabled=true;try{project.output={paper:data.get('paper'),orientation:data.get('orientation'),format:data.get('format')};saveDraft();const output=await createQA(await qaProject(),{orientation:data.get('orientation'),paper:data.get('paper')});await saveQA(output,project,{format:data.get('format'),orientation:data.get('orientation'),paper:data.get('paper')});$('modal').close();toast('QA plan downloaded.');}finally{b.disabled=false;}});
  for(const [key,value] of Object.entries(project.output))$('modal-body').querySelector(`[name=${key}]`).value=value;
- let latest=0;modalCleanup=()=>{latest++;};async function preview(){const ticket=++latest;try{const form=$('modal-body').querySelector('form');if(!form)return;const data=new FormData(form),output=await createQA(project,{orientation:data.get('orientation'),paper:data.get('paper'),preview:true});if(ticket!==latest||!$('qa-preview'))return;const img=document.createElement('img');img.src=output.toDataURL('image/png');img.alt='QA plan preview with station IDs, scale, legend and estimate';$('qa-preview').replaceChildren(img);}catch(err){if($('qa-preview'))$('qa-preview').textContent=err.message;}}
+ let latest=0;modalCleanup=()=>{latest++;};async function preview(){const ticket=++latest;try{const form=$('modal-body').querySelector('form');if(!form)return;const data=new FormData(form),output=await createQA(await qaProject(),{orientation:data.get('orientation'),paper:data.get('paper'),preview:true});if(ticket!==latest||!$('qa-preview'))return;const img=document.createElement('img');img.src=output.toDataURL('image/png');img.alt='QA plan preview with station IDs, scale, legend and estimate';$('qa-preview').replaceChildren(img);}catch(err){if(ticket===latest&&$('qa-preview'))$('qa-preview').textContent=err.message;}}
  $('modal-body').querySelectorAll('select').forEach(s=>s.onchange=preview);preview();
 }
 function openHelp(){showModal('Plan controls',`<div class="shortcut-list"><span>Select / move</span><kbd>V</kbd><span>Place scan / target</span><kbd>S / T</kbd><span>Link stations / set scale</span><kbd>L / C</kbd><span>Pan</span><kbd>H or Space</kbd><span>Fit plan</span><kbd>F</kbd><span>Move selected station</span><kbd>Arrow keys</kbd><span>Delete selected station</span><kbd>Delete</kbd><span>Undo / redo</span><kbd>Ctrl Z / Ctrl Shift Z</kbd><span>Save / open project</span><kbd>Ctrl S / Ctrl O</kbd></div><p class="help-footer">Choose a density, then click the plan to place a scan. Use the station list to select and edit coordinates.<br><br>Time estimates include profile durations, move / setup per scan, and target scan time per target.<br><a href="/terms" target="_blank" rel="noopener">Sources & privacy</a></p>`);}
@@ -311,4 +343,4 @@ const stage=$('canvas-stage');
 stage.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEffect='copy';stage.classList.add('file-drop-active');});stage.addEventListener('dragleave',e=>{if(!stage.contains(e.relatedTarget))stage.classList.remove('file-drop-active');});stage.addEventListener('drop',async e=>{e.preventDefault();stage.classList.remove('file-drop-active');const file=e.dataTransfer.files[0];if(file){if(/\.(?:json|txt|planscan)$/i.test(file.name))await loadProject(file);else await loadUnderlay(file);}});
 new ResizeObserver(()=>{if(fitMode)fitPlan();else renderCanvas();}).observe(stage);
 render();fitPlan();
-(async()=>{try{db=await openDB();const saved=await storeValue('readonly');if(saved&&!localEdits){project=normalizeProject(saved);render();fitPlan();}setSaveState(saved?'Restored from this device':'Sample project');}catch{setSaveState('Save a project file',false);}restoreComplete=true;if(localEdits)saveDraft();})();
+(async()=>{try{db=await openDB();const saved=await storeValue('readonly');if(saved&&!localEdits){project=upgradeMap(normalizeProject(saved));const savedView=project.mapView;render();fitPlan();restoreMapView(savedView);}setSaveState(saved?'Restored from this device':'Sample project');}catch{setSaveState('Save a project file',false);}restoreComplete=true;if(localEdits)saveDraft();})();

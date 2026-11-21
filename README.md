@@ -1,6 +1,6 @@
 # PlanScan
 
-A terrestrial laser scanning station planner for TLS Tools. Place stations and targets on an image, PDF page or SIX Maps basemap underlay, assign density profiles, estimate scan time, and export an annotated QA plan.
+A terrestrial laser scanning station planner for TLS Tools. Place stations and targets on an image, PDF page or NSW Imagery Basemap underlay, assign density profiles, estimate scan time, and export an annotated QA plan.
 
 ## Run locally
 
@@ -47,26 +47,28 @@ Legacy Fabric TXT templates can be imported. Inspect their scan times and links 
 
 **Export QA plan** previews PDF or PNG output with explicit A4/A3 paper and portrait/landscape orientation. The output includes project/site, revision/date, underlay and PDF page, station IDs, density counts and times, setup allowance, target count/time, total, and a calibrated scale bar when available. Export geometry is independent of browser dimensions. Export choices are retained with the project.
 
-## SIX Maps basemaps and overlays
+## Live NSW imagery and overlays
 
-Choose **SIX Maps basemap**. Search an NSW address, or enter GDA2020 latitude/longitude, then choose the coverage width in metres. No API key is required. The map source is the supplied [NSW Base Map WMTS capabilities document](https://maps.six.nsw.gov.au/arcgis/rest/services/public/NSW_Base_Map/MapServer/WMTS/1.0.0/WMTSCapabilities.xml). This is a WMTS tile service; the selected layer is `public_NSW_Base_Map`, style `default`, tile matrix set `default028mm` (EPSG:3857). Address results still come from the SIX Maps NSW address-point service.
+Choose **NSW imagery** and search an NSW address, or enter GDA2020 latitude/longitude. Initial view width sets the starting area. The source is the [NSW Imagery Basemap portal item](https://portal.spatial.nsw.gov.au/portal/home/item.html?id=c04ce33be7a04a7884f786f5beb20b19), using its [NSWWebImagery tile service](https://portal.spatial.nsw.gov.au/aid/tile/rest/services/NSWWebImagery/MapServer). No API key is required.
 
-OpenLayers reads that capabilities document, loads the advertised WMTS grid through a same-origin tile proxy, and reprojects the basemap to a north-up MGA2020 canvas using Proj4. The projected canvas extent establishes the scale and station eastings/northings. It is not a Web Mercator image labelled as MGA2020. Failed or missing tiles stop the load without replacing the current plan. Render targets, tile requests and object URLs are cleaned up after completion or cancellation.
+The basemap is a persistent live tile layer. Wheel/button zoom requests the appropriate level of detail; dragging the background or using Pan loads new areas. Imagery fills the work area and is not bounded by the initial view. OpenLayers reads the service tile grid and reprojects imagery into the project's MGA2020 zone.
 
-Each map station records MGA2020 zone, EPSG, easting and northing. Selection shows editable eastings/northings in metres. Northing decreases as a station moves down the image. Coordinate accuracy is limited by the source map and datum transformations; these are planning coordinates.
+Stations and image overlays use a fixed MGA2020 reference. Navigation changes the view, not their geographic coordinates. You can place or move stations beyond the initial area. Selection shows editable eastings/northings; the lower-right scale bar follows current metre resolution. Tile failures show Retry and keep the plan intact.
 
-After uploading an image or selecting a PDF page, choose **Blank canvas** or **SIX Maps basemap**. A basemap overlay keeps the existing stations. Use **Adjust image** to set position, width, rotation and opacity, or **Move image on plan** / the Image tool to drag it into place. **Set image scale** uses the same numeric / two-point calibration flow to resize the uploaded image against the basemap; its first calibration point remains fixed and the basemap MGA2020 grid stays unchanged. Geometry and opacity are preserved in project files, drafts and QA exports. Replacing the base underlay clears stations with confirmation and supports undo.
+After uploading an image or selecting a PDF page, choose **Blank canvas** or **NSW imagery**. An overlay is added at the current view centre. Adjust position, width, rotation and opacity, or use the Image tool to drag it. **Set image scale** calibrates the uploaded image while keeping its first control point fixed. Image-only plans show **Not to scale** and Set scale until calibrated. All distances use metres. A standalone image has local coordinates until a global location reference is supplied.
 
-The lower-right scale bar changes with zoom. Unscaled images show **Not to scale** beside **Set scale**. Both that button and the sidebar Set scale control use the same numeric / two-point calibration flow. All distances are in metres. A standalone uploaded image has local coordinates; calibration does not assign it an MGA2020 location.
+**Target scan time**, below Move / setup, is multiplied by target count. The estimate includes profile scan time, movement/setup per scan, and target scan time. Invalid durations block save/export.
 
-**Target scan time**, directly below Move / setup, is added once per target. The total is scan-profile time + movement/setup per scan + target scan time × target count. Invalid durations block save/export; changing or deleting targets updates totals immediately. The QA footer includes the target count, duration and subtotal.
+Version 4 projects retain live source settings, last view, uploaded overlays, station coordinates and timing. Basemap tiles are fetched when reopened; the basemap is not saved as a static image. Version 2/3 projects remain importable. Earlier SIX Maps projects upgrade to the current imagery layer while retaining their MGA2020 geometry.
 
-Basemap imagery, projected extents, uploaded overlays and station coordinates are saved in version 3 project files for reopening on the same device or elsewhere. Version 2 projects remain importable; older map canvases without imagery become local blank canvases. SIX Maps / NSW Spatial Services attribution appears on the canvas and QA output. Location and address requests are sent to SIX Maps. Uploaded image bytes stay in the browser.
+QA export fetches imagery for an extent covering all placed stations and the uploaded overlay, including work beyond the initial view. With no placed objects it uses the current view. A separate render creates the PDF/PNG snapshot while the editor stays live. Output includes scale, MGA2020 reference, timing and attribution. Coordinate accuracy is limited by source imagery and datum transformations; these are planning coordinates.
+
+Attribution: NSW DCS Spatial Services; SPOT Image (Geoimage GeoHD) © Airbus DS 2025, provided by DCCEEW. Imagery currency varies by area and zoom level. Location/tile requests go to NSW public services. Uploaded image bytes stay in the browser.
 
 ## Source and checks
 
 - `client/`: browser editor, project model, export renderer and SVG sample.
-- `server/handler.mjs`: assets, WMTS capabilities/tile proxy, and SIX address lookup handler.
+- `server/handler.mjs`: assets, imagery metadata/tile proxy, and SIX address lookup handler.
 - `scripts/`: local server and Worker build.
 - `tests/`: duration, identity, persistence, geometry and server regressions.
 - `.github/workflows/ci.yml`: clean install, tests, build and browser checks on pushes and pull requests.

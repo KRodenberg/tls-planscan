@@ -16,7 +16,7 @@ This continuation also fixes pointer cancellation, lost capture and window blur,
 
 ## Verification
 
-- 35 model/server regression tests pass under Node.js 22.23.4.
+- 38 model/server regression tests pass under Node.js 22.23.4.
 - Worker build passes. A fresh source checkout builds without a Sites hosting manifest.
 - Chromium browser checks pass for immediate estimates, invalid duration handling, targets/links, metres calibration, project save/open, draft recovery, clear/undo, image rotation, explicit PDF page selection and PDF/PNG downloads.
 - QA output was rendered and visually inspected. Portrait/landscape geometry uses the selected paper aspect ratio.
@@ -40,3 +40,9 @@ Live provider verification loaded SIX Maps imagery over Sydney through the local
 The SIX Maps picker now uses the supplied NSW_Base_Map WMTS capabilities URL, layer public_NSW_Base_Map, default style and default028mm tile matrix set. OpenLayers reads the capabilities and reprojects the EPSG:3857 tiles into an MGA2020 canvas. This replaces the previous NSW_Imagery map export path for new map loads. Uploaded overlays, project persistence, metre scale and target timing continue to work. Saved legacy map images remain intact; load SIX Maps basemap to use the new source.
 
 Live verification loaded 88 advertised WMTS tiles without errors at the Sydney test location and recorded a station in MGA2020 zone 56. Regression coverage includes the exact capabilities URL and tile path, invalid tile indices, tile failures, projection/scale and persisted WMTS source metadata.
+
+## Portal imagery and live navigation
+
+The active source is the user's NSW Imagery Basemap portal item c04ce33be7a04a7884f786f5beb20b19 and its NSWWebImagery tiled service. It supersedes the NSW_Base_Map WMTS selection above. A persistent visible OpenLayers layer loads imagery during pan/zoom. Stations and overlays retain fixed MGA2020 positions. Placement extends beyond the initial area. Version 4 restores the last view and source settings without storing a static basemap.
+
+Regression checks inspect requests for new zoom levels and new tile areas, compare MGA2020 positions before/after navigation, place stations outside the initial area, verify overlay/view persistence and full-plan export, and test failed-tile retry. Live service verification loaded 88 tiles initially and 136 after zoom across levels 19 and 20, with no page errors.

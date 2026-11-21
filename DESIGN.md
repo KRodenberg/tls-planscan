@@ -249,3 +249,7 @@ SIX Maps uses the specified NSW Base Map WMTS source. Image/PDF uploads offer a 
 The lower-right canvas scale is a flat white panel above zoom controls. Show a metre scale bar when calibrated, otherwise Not to scale and a distinct Set scale button. Attribution stays at the lower left without obscuring tools. Aerial scale follows its MGA2020 grid; uploaded image size is adjusted separately.
 
 Station selection uses a full-width density selector and two readable coordinate fields. Aerial stations show Easting, Northing and the MGA2020 zone / EPSG reference. Image-only stations show local coordinates. Target scan time sits immediately beneath movement/setup and contributes a labelled subtotal to the estimate and QA footer.
+
+## Live NSW Imagery Basemap
+
+Imagery fills the workspace behind the station and image-overlay SVG. Background drag and wheel/button zoom load new tiles. Station/image geometry remains fixed in MGA2020; no paper edge limits the map. Use a white backing for plan metadata and attribution over variable imagery. Keep loading / Retry feedback compact at the top right. The lower-right metre scale follows view resolution. Attribution identifies the portal's NSW Imagery Basemap and its suppliers. Export fits all objects using a separate map render; editing remains live.

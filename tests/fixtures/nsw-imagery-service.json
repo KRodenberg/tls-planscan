@@ -1,0 +1,196 @@
+{
+  "tileInfo": {
+    "lods": [
+      {
+        "level": 0,
+        "scale": 591657527.591555,
+        "resolution": 156543.03392800014
+      },
+      {
+        "level": 1,
+        "scale": 295828763.795777,
+        "resolution": 78271.51696399994
+      },
+      {
+        "level": 2,
+        "scale": 147914381.897889,
+        "resolution": 39135.75848200009
+      },
+      {
+        "level": 3,
+        "scale": 73957190.948944,
+        "resolution": 19567.87924099992
+      },
+      {
+        "level": 4,
+        "scale": 36978595.474472,
+        "resolution": 9783.93962049996
+      },
+      {
+        "level": 5,
+        "scale": 18489297.737236,
+        "resolution": 4891.96981024998
+      },
+      {
+        "level": 6,
+        "scale": 9244648.868618,
+        "resolution": 2445.98490512499
+      },
+      {
+        "level": 7,
+        "scale": 4622324.434309,
+        "resolution": 1222.992452562495
+      },
+      {
+        "level": 8,
+        "scale": 2311162.217155,
+        "resolution": 611.4962262813797
+      },
+      {
+        "level": 9,
+        "scale": 1155581.108577,
+        "resolution": 305.74811314055756
+      },
+      {
+        "level": 10,
+        "scale": 577790.554289,
+        "resolution": 152.87405657041106
+      },
+      {
+        "level": 11,
+        "scale": 288895.277144,
+        "resolution": 76.43702828507324
+      },
+      {
+        "level": 12,
+        "scale": 144447.638572,
+        "resolution": 38.21851414253662
+      },
+      {
+        "level": 13,
+        "scale": 72223.819286,
+        "resolution": 19.10925707126831
+      },
+      {
+        "level": 14,
+        "scale": 36111.909643,
+        "resolution": 9.554628535634155
+      },
+      {
+        "level": 15,
+        "scale": 18055.954822,
+        "resolution": 4.77731426794937
+      },
+      {
+        "level": 16,
+        "scale": 9027.977411,
+        "resolution": 2.388657133974685
+      },
+      {
+        "level": 17,
+        "scale": 4513.988705,
+        "resolution": 1.1943285668550503
+      },
+      {
+        "level": 18,
+        "scale": 2256.994353,
+        "resolution": 0.5971642835598172
+      },
+      {
+        "level": 19,
+        "scale": 1128.497176,
+        "resolution": 0.29858214164761665
+      },
+      {
+        "level": 20,
+        "scale": 564.248588,
+        "resolution": 0.14929107082380833
+      },
+      {
+        "level": 21,
+        "scale": 282.124294,
+        "resolution": 0.07464553541190416
+      },
+      {
+        "level": 22,
+        "scale": 141.062147,
+        "resolution": 0.0373227677
+      },
+      {
+        "level": 23,
+        "scale": 70.5310735,
+        "resolution": 0.01866138385297604
+      }
+    ],
+    "bandCount": 1,
+    "lercError": 0,
+    "origin": {
+      "x": -20037508.342787,
+      "y": 20037508.342787
+    },
+    "format": "MIXED",
+    "storageFormat": "esriMapCacheStorageModeCompactV2",
+    "compressionQuality": 75,
+    "packetSize": 128,
+    "spatialReference": {
+      "latestWkid": 3857,
+      "wkid": 102100
+    },
+    "rows": 256,
+    "dpi": 96,
+    "cols": 256
+  },
+  "units": "esriMeters",
+  "type": "MapServer",
+  "exportTilesAllowed": false,
+  "minScale": 591657527.591555,
+  "mapName": "NSWWebImagery",
+  "spatialReference": {
+    "latestWkid": 3857,
+    "wkid": 102100
+  },
+  "tileImageInfo": {
+    "bandCount": 1,
+    "lercError": 0,
+    "format": "MIXED",
+    "compressionQuality": 75
+  },
+  "fullExtent": {
+    "ymin": -4514305.200380834,
+    "xmin": 15680417.383907419,
+    "ymax": -3259700.0650851764,
+    "xmax": 17737373.3766,
+    "spatialReference": {
+      "latestWkid": 3857,
+      "wkid": 102100
+    }
+  },
+  "supportedExtensions": "",
+  "serviceItemId": "",
+  "capabilities": "TilesOnly,Tilemap",
+  "maxScale": 70.5310735,
+  "singleFusedMapCache": true,
+  "version": 1,
+  "storageInfo": {
+    "storageFormat": "esriMapCacheStorageModeCompactV2",
+    "packetSize": 128
+  },
+  "resampling": true,
+  "currentVersion": 12.1,
+  "tileBundlesPath": "./tile",
+  "maxLOD": 23,
+  "minLOD": 0,
+  "cacheControlMaxAge": "43200",
+  "initialExtent": {
+    "ymin": -4514305.200380834,
+    "xmin": 15680417.383907419,
+    "ymax": -3259700.0650851764,
+    "xmax": 17109058.883636627,
+    "spatialReference": {
+      "latestWkid": 3857,
+      "wkid": 102100
+    }
+  },
+  "name": "NSWWebImagery",
+  "serviceDescription": ""
+}

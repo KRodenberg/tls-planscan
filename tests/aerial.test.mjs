@@ -19,7 +19,7 @@ test('image overlay, targets, projected extent and coordinates survive a project
  const restored=normalizeProject(serializable(p));assert.deepEqual(restored.overlay,p.overlay);assert.deepEqual(restored.stations,p.stations);assert.equal(restored.targetSeconds,45);assert.equal(restored.underlay.metresPerPixel,.5);
  const before=snapshot(p);p.underlay.georeference.extent.xmin++;p.overlay.x++;assert.notEqual(before.overlay.x,p.overlay.x);assert.notEqual(before.underlay.georeference.extent.xmin,p.underlay.georeference.extent.xmin);
 });
-test('old projects migrate to the new model with zero target allowance',()=>{const p=newProject(true);p.version=2;delete p.targetSeconds;delete p.overlay;const result=normalizeProject(p);assert.equal(result.version,3);assert.equal(result.targetSeconds,0);assert.equal(result.overlay,null);});
+test('old projects migrate to the new model with zero target allowance',()=>{const p=newProject(true);p.version=2;delete p.targetSeconds;delete p.overlay;const result=normalizeProject(p);assert.equal(result.version,4);assert.equal(result.targetSeconds,0);assert.equal(result.overlay,null);});
 test('invalid target times, projected extents and image transforms are rejected',()=>{
  const p=aerial();p.targetSeconds=-1;assert.throws(()=>normalizeProject(p),/target scan duration/);p.targetSeconds=0;p.underlay.georeference.epsg=3857;assert.throws(()=>normalizeProject(p),/MGA2020 extent/);p.underlay.georeference.epsg=7856;
  p.overlay=newOverlay(p.underlay,{kind:'image',name:'plan',width:800,height:400,dataUrl:image});p.overlay.size=-1;assert.throws(()=>normalizeProject(p),/invalid image overlay/);
