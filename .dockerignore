@@ -1,0 +1,11 @@
+*
+!Dockerfile
+!.dockerignore
+!package.json
+!package-lock.json
+!client/
+!client/**
+!server/
+!server/**
+!scripts/
+!scripts/**

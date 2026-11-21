@@ -29,6 +29,36 @@ The browser suite starts an isolated local server, exercises import/edit/save/ex
 
 The build bundles OpenLayers and Proj4 for browser map rendering, then emits a self-contained Worker ES module at `dist/server/index.js`. It default-exports a `fetch(request, env)` handler and serves both assets and the map endpoint. Use a Worker-compatible host at the domain root with HTTPS. GitHub stores the source; GitHub Pages alone does not run the map endpoint. An existing checkout-local `.openai/hosting.json`, when present, is copied into the build; a fresh clone builds without it.
 
+## Docker and Docker Compose
+
+Build and run the production image:
+
+```sh
+docker build -t tls-planscan:latest .
+docker run --detach --name planscan --restart unless-stopped -p 4173:4173 tls-planscan:latest
+```
+
+Open **http://localhost:4173**. The multi-stage image builds the frontend once and runs the compiled app as the unprivileged `node` user. The runtime contains no installed application dependencies or build tools. Its health check uses `/api/status`, and SIGTERM stops the HTTP server gracefully.
+
+A ready-to-use service is in [compose.example.yml](compose.example.yml):
+
+```sh
+docker compose -f compose.example.yml up -d --build
+```
+
+Set `PLANSCAN_HOST_PORT=4175` before that command if port 4173 is already in use. Copy the `planscan` service into an existing Compose file and point `build.context` at this checkout, or build the image first and remove the `build` section. Keep the container port at **4173** and change the host-side port as needed. The example runs with a read-only filesystem and needs no volumes; projects and drafts remain in the user's browser or downloaded project files.
+
+For a reverse proxy on the same Compose network, remove `ports` and forward to **http://planscan:4173**. Preserve the original `Host` header. If the proxy terminates HTTPS, set `TRUST_PROXY: "1"` and forward `X-Forwarded-Proto` (and `X-Forwarded-Host` if the original host is not preserved). Enable this only behind your trusted proxy so same-origin basemap requests use the correct public origin. Serve the app at the domain root.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `PORT` | `4173` | HTTP port inside the container. Match any changed port mapping. |
+| `HOST` | `0.0.0.0` | Bind address for the production server. |
+| `TRUST_PROXY` | disabled | Set to `1` to accept the trusted proxy's forwarded scheme/host. |
+| `PLANSCAN_HOST_PORT` | `4173` | Host port used by the example Compose file. |
+
+Outbound HTTPS access to NSW Spatial Services is required for live imagery and address lookup. No API key is needed. For a production Node deployment without Docker, run `npm run build` then `npm start`.
+
 ## Planning
 
 - Upload PNG, JPG, WEBP or PDF, up to 25 MiB. PDF import includes a page picker and preview. Images preserve their orientation and aspect ratio.
@@ -69,9 +99,10 @@ Attribution: NSW DCS Spatial Services; SPOT Image (Geoimage GeoHD) © Airbus DS 
 
 - `client/`: browser editor, project model, export renderer and SVG sample.
 - `server/handler.mjs`: assets, imagery metadata/tile proxy, and SIX address lookup handler.
-- `scripts/`: local server and Worker build.
-- `tests/`: duration, identity, persistence, geometry and server regressions.
-- `.github/workflows/ci.yml`: clean install, tests, build and browser checks on pushes and pull requests.
+- `scripts/`: development server, production server and Worker build.
+- `Dockerfile` / `compose.example.yml`: production image and reusable Compose service.
+- `tests/`: duration, identity, persistence, geometry and HTTP server regressions.
+- `.github/workflows/ci.yml`: clean install, tests, Docker build/health check and browser checks against the production container on pushes and pull requests.
 - [PRODUCT.md](PRODUCT.md) and [DESIGN.md](DESIGN.md): product requirements and interface direction.
 - [Review follow-up](docs/REVIEW_FOLLOW_UP.md): scope, completed fixes and verification limits.
 

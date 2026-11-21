@@ -43,3 +43,5 @@ The live predecessor was reviewed at https://www.tls.tools/PlanScan/. The parent
 Each newly placed scan connects to the last remaining scan, skipping targets. Preserve existing graphs on project import. Show current straight-line link distances in metres in the editor and QA output; use Not to scale until calibration exists. Moving stations and adjusting calibration updates distances. Add the station and its automatic link as one undoable action.
 
 Show imagery-unavailable feedback only when no basemap imagery is visible and tile loading has failed. Keep smaller attribution below the active scan-profile control.
+
+Distribute a production Docker image and a service example that can be inserted into an existing Compose stack. Build assets once, run as an unprivileged user, expose a configurable HTTP listener with health checking and graceful shutdown, and support trusted HTTPS reverse proxies. Keep project storage in the browser; no server volume is required.

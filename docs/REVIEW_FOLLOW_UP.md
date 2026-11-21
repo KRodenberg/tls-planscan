@@ -16,7 +16,7 @@ This continuation also fixes pointer cancellation, lost capture and window blur,
 
 ## Verification
 
-- 44 model/server regression tests pass under Node.js 22.23.4.
+- 49 model/server regression tests pass under Node.js 22.23.4.
 - Worker build passes. A fresh source checkout builds without a Sites hosting manifest.
 - Chromium browser checks pass for immediate estimates, invalid duration handling, targets/links, metres calibration, project save/open, draft recovery, clear/undo, image rotation, explicit PDF page selection and PDF/PNG downloads.
 - QA output was rendered and visually inspected. Portrait/landscape geometry uses the selected paper aspect ratio.
@@ -52,3 +52,9 @@ Regression checks inspect requests for new zoom levels and new tile areas, compa
 The unavailable warning now checks rendered basemap coverage. Browser regressions force failed zoom tiles while cached imagery remains visible, then reload into a complete outage and verify Retry. Attribution uses 10px type directly below the active profile control on desktop and 390px/320px phone layouts.
 
 New scans connect to the preceding scan, skipping targets; imported projects retain their existing graphs. Editor and QA link labels derive straight-line metre distances from the current scale and endpoints, with Not to scale for uncalibrated plans. Model and browser checks cover movement/calibration, MGA2020 view independence, export reprojection, target skipping, deletion, save/restore and atomic undo/redo.
+
+## Docker runtime
+
+A multi-stage Node 22 image contains only the built Worker module and a small Node HTTP adapter. The runtime uses the node user and supports read-only operation, health checks and graceful shutdown. The Compose example can be copied into a larger stack. Trusted proxy configuration preserves the public HTTPS origin for map requests.
+
+HTTP integration tests cover GET/HEAD assets, health, POST bodies, origin checks, trusted proxy headers, oversized fixed/chunked bodies and recoverable adapter errors. The browser runner accepts an existing server URL so GitHub Actions builds the image, waits for container health and runs the complete suite against the production container.

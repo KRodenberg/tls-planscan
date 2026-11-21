@@ -1,0 +1,18 @@
+services:
+  planscan:
+    image: tls-planscan:latest
+    build:
+      context: .
+    ports:
+      - "${PLANSCAN_HOST_PORT:-4173}:4173"
+    environment:
+      PORT: "4173"
+      # Set TRUST_PROXY: "1" when using a trusted HTTPS reverse proxy.
+    init: true
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 15s
