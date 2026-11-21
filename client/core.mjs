@@ -30,17 +30,19 @@ export function newProject(sample = false) {
   if (sample) {
     project.underlay = { kind: 'sample', name: 'Sample floor plan', width: 1400, height: 900, dataUrl: null, metresPerPixel: 0.025, unit: 'm', source: 'Illustrative sample', page: null };
     const points = [[225,225,'medium'],[480,225,'medium'],[750,225,'high'],[1000,225,'low'],[1180,225,'low'],[225,485,'medium'],[480,485,'high'],[750,485,'medium'],[1065,485,'low'],[1180,705,'high'],[750,705,'medium'],[375,705,'medium']];
-    points.forEach(([x,y,density]) => addStation(project, x, y, 'scan', density));
+    points.forEach(([x,y,density]) => addStation(project, x, y, 'scan', density, {autoLink:false}));
     [[0,1],[1,2],[2,3],[3,4],[1,6],[6,7],[7,8],[7,10],[10,9],[10,11],[6,5]].forEach(([a,b]) => project.links.push({id:uid(), from:project.stations[a].id, to:project.stations[b].id}));
   }
   return project;
 }
-export function addStation(project, x, y, kind = 'scan', density = 'medium') {
+export function addStation(project, x, y, kind = 'scan', density = 'medium', {autoLink=true} = {}) {
   if (!validPosition(project,x,y) || !['scan','target'].includes(kind) || !DENSITIES.includes(density)) throw new Error('Choose a position within the plan.');
   if (project.stations.length >= LIMITS.stations || (kind === 'target' ? project.nextTargetNumber : project.nextStationNumber) > LIMITS.number) throw new Error('This plan has reached its station limit.');
+  const previous=kind==='scan'&&autoLink?project.stations.findLast(s=>s.kind==='scan'):null;
+  if(previous&&project.links.length>=LIMITS.links)throw new Error('This plan has reached its link limit.');
   const number = kind === 'target' ? project.nextTargetNumber++ : project.nextStationNumber++;
   const station = { id: uid(), number, kind, density, x, y, note: '' };
-  project.stations.push(station); updateStationCoordinates(project); return station;
+  project.stations.push(station);if(previous)project.links.push({id:uid(),from:previous.id,to:station.id});updateStationCoordinates(project);return station;
 }
 export function deleteStation(project, id) { project.stations = project.stations.filter(s => s.id !== id); project.links = project.links.filter(l => l.from !== id && l.to !== id); }
 export function snapshot(project) {
@@ -171,3 +173,9 @@ export function projectForMapSnapshot(project,frame){
  if(copy.overlay)copy.overlay={...copy.overlay,...translate(copy.overlay),size:copy.overlay.size*old.metresPerPixel/m};
  updateStationCoordinates(copy);return copy;
 }
+
+export function linkDistance(project,link){
+ const a=project.stations.find(s=>s.id===link.from),b=project.stations.find(s=>s.id===link.to),m=project.underlay?.metresPerPixel;
+ return a&&b&&Number.isFinite(m)&&m>0?Math.hypot(b.x-a.x,b.y-a.y)*m:null;
+}
+export function formatDistance(metres){return metres===null?'Not to scale':`${new Intl.NumberFormat('en-AU',{maximumFractionDigits:2}).format(metres)} m`;}

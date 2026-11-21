@@ -34,7 +34,7 @@ The build bundles OpenLayers and Proj4 for browser map rendering, then emits a s
 - Upload PNG, JPG, WEBP or PDF, up to 25 MiB. PDF import includes a page picker and preview. Images preserve their orientation and aspect ratio.
 - Select **Low**, **Medium** or **High**, then click the plan. Time per scan accepts minutes (`5`) or minutes and seconds (`02:30`). Valid edits update totals immediately. Invalid fields retain the last valid estimate and block save/export until corrected.
 - **Set scale** accepts two image coordinates and their known separation in metres. **Pick points on plan** provides the pointer workflow. View zoom remains separate from physical calibration. Coordinates use metres when calibrated.
-- Use **Select**, the station list, or **Add scan / Add target** to edit positions. Selection exposes density, coordinates, a note and **Edit links**. Clicking two stations with the Link tool adds or removes their link.
+- Use **Select**, the station list, or **Add scan / Add target** to edit positions. Each new scan links to the previous scan, skipping targets. Link labels show the current straight-line distance in metres and update when either station moves or the plan scale changes; uncalibrated plans show **Not to scale**. Selection exposes density, coordinates, a note and **Edit links**. Clicking two stations with the Link tool adds or removes their link.
 - Rotation moves the underlay and all stations together. Clear, replacement, rotation and station edits support undo/redo. Station numbers remain monotonic after deletion.
 
 Keyboard shortcuts: **V** select, **S** scan, **T** target, **L** link, **C** pick scale points, **H** or hold **Space** to pan, **F** fit, arrow keys to move the selected station, **Delete** remove, **Ctrl/Cmd Z** undo, **Ctrl/Cmd Shift Z** redo, **Ctrl/Cmd S** save, and **Ctrl/Cmd O** open. Native buttons also support Enter and Space.
@@ -53,7 +53,7 @@ Choose **NSW imagery** and search an NSW address, or enter GDA2020 latitude/long
 
 The basemap is a persistent live tile layer. Wheel/button zoom requests the appropriate level of detail; dragging the background or using Pan loads new areas. Imagery fills the work area and is not bounded by the initial view. OpenLayers reads the service tile grid and reprojects imagery into the project's MGA2020 zone.
 
-Stations and image overlays use a fixed MGA2020 reference. Navigation changes the view, not their geographic coordinates. You can place or move stations beyond the initial area. Selection shows editable eastings/northings; the lower-right scale bar follows current metre resolution. Tile failures show Retry and keep the plan intact.
+Stations and image overlays use a fixed MGA2020 reference. Navigation changes the view, not their geographic coordinates. You can place or move stations beyond the initial area. Selection shows editable eastings/northings; the lower-right scale bar follows current metre resolution. The smaller source attribution sits below the active scan-profile control. Retry appears when failed tiles leave the current view without imagery; older failed requests do not trigger a warning over visible imagery. The plan stays intact during outages.
 
 After uploading an image or selecting a PDF page, choose **Blank canvas** or **NSW imagery**. An overlay is added at the current view centre. Adjust position, width, rotation and opacity, or use the Image tool to drag it. **Set image scale** calibrates the uploaded image while keeping its first control point fixed. Image-only plans show **Not to scale** and Set scale until calibrated. All distances use metres. A standalone image has local coordinates until a global location reference is supplied.
 
@@ -61,7 +61,7 @@ After uploading an image or selecting a PDF page, choose **Blank canvas** or **N
 
 Version 4 projects retain live source settings, last view, uploaded overlays, station coordinates and timing. Basemap tiles are fetched when reopened; the basemap is not saved as a static image. Version 2/3 projects remain importable. Earlier SIX Maps projects upgrade to the current imagery layer while retaining their MGA2020 geometry.
 
-QA export fetches imagery for an extent covering all placed stations and the uploaded overlay, including work beyond the initial view. With no placed objects it uses the current view. A separate render creates the PDF/PNG snapshot while the editor stays live. Output includes scale, MGA2020 reference, timing and attribution. Coordinate accuracy is limited by source imagery and datum transformations; these are planning coordinates.
+QA export fetches imagery for an extent covering all placed stations and the uploaded overlay, including work beyond the initial view. With no placed objects it uses the current view. A separate render creates the PDF/PNG snapshot while the editor stays live. Output includes link distances, scale, MGA2020 reference, timing and attribution. Coordinate accuracy is limited by source imagery and datum transformations; these are planning coordinates.
 
 Attribution: NSW DCS Spatial Services; SPOT Image (Geoimage GeoHD) © Airbus DS 2025, provided by DCCEEW. Imagery currency varies by area and zoom level. Location/tile requests go to NSW public services. Uploaded image bytes stay in the browser.
 

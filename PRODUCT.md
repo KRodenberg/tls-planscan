@@ -39,3 +39,7 @@ The live predecessor was reviewed at https://www.tls.tools/PlanScan/. The parent
 - Edits are reversible; station IDs remain stable.
 - QA exports preserve geometry and identify their assumptions.
 - Short labels and direct controls carry the workflow.
+
+Each newly placed scan connects to the last remaining scan, skipping targets. Preserve existing graphs on project import. Show current straight-line link distances in metres in the editor and QA output; use Not to scale until calibration exists. Moving stations and adjusting calibration updates distances. Add the station and its automatic link as one undoable action.
+
+Show imagery-unavailable feedback only when no basemap imagery is visible and tile loading has failed. Keep smaller attribution below the active scan-profile control.

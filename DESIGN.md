@@ -253,3 +253,9 @@ Station selection uses a full-width density selector and two readable coordinate
 ## Live NSW Imagery Basemap
 
 Imagery fills the workspace behind the station and image-overlay SVG. Background drag and wheel/button zoom load new tiles. Station/image geometry remains fixed in MGA2020; no paper edge limits the map. Use a white backing for plan metadata and attribution over variable imagery. Keep loading / Retry feedback compact at the top right. The lower-right metre scale follows view resolution. Attribution identifies the portal's NSW Imagery Basemap and its suppliers. Export fits all objects using a separate map render; editing remains live.
+
+### Linked scan distances and imagery feedback
+
+New scans link to the preceding scan, skipping targets. Dashed links carry white-backed midpoint distance labels that stay legible at a fixed screen size during zoom. Distances follow endpoint and calibration edits; unscaled plans show Not to scale. The same distance labels appear in QA output. Keep manual link editing and the existing show-links setting.
+
+Place the basemap attribution directly beneath the active scan-profile control in a vertical stack. Use 10px type at the user’s request, with a white backing and wrapping on narrow screens. Loading and failure feedback reflects the visible basemap: cached imagery suppresses auxiliary or historical tile errors, while an empty failed view offers Retry.

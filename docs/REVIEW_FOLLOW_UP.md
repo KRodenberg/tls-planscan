@@ -16,7 +16,7 @@ This continuation also fixes pointer cancellation, lost capture and window blur,
 
 ## Verification
 
-- 38 model/server regression tests pass under Node.js 22.23.4.
+- 44 model/server regression tests pass under Node.js 22.23.4.
 - Worker build passes. A fresh source checkout builds without a Sites hosting manifest.
 - Chromium browser checks pass for immediate estimates, invalid duration handling, targets/links, metres calibration, project save/open, draft recovery, clear/undo, image rotation, explicit PDF page selection and PDF/PNG downloads.
 - QA output was rendered and visually inspected. Portrait/landscape geometry uses the selected paper aspect ratio.
@@ -46,3 +46,9 @@ Live verification loaded 88 advertised WMTS tiles without errors at the Sydney t
 The active source is the user's NSW Imagery Basemap portal item c04ce33be7a04a7884f786f5beb20b19 and its NSWWebImagery tiled service. It supersedes the NSW_Base_Map WMTS selection above. A persistent visible OpenLayers layer loads imagery during pan/zoom. Stations and overlays retain fixed MGA2020 positions. Placement extends beyond the initial area. Version 4 restores the last view and source settings without storing a static basemap.
 
 Regression checks inspect requests for new zoom levels and new tile areas, compare MGA2020 positions before/after navigation, place stations outside the initial area, verify overlay/view persistence and full-plan export, and test failed-tile retry. Live service verification loaded 88 tiles initially and 136 after zoom across levels 19 and 20, with no page errors.
+
+## Imagery feedback and automatic scan links
+
+The unavailable warning now checks rendered basemap coverage. Browser regressions force failed zoom tiles while cached imagery remains visible, then reload into a complete outage and verify Retry. Attribution uses 10px type directly below the active profile control on desktop and 390px/320px phone layouts.
+
+New scans connect to the preceding scan, skipping targets; imported projects retain their existing graphs. Editor and QA link labels derive straight-line metre distances from the current scale and endpoints, with Not to scale for uncalibrated plans. Model and browser checks cover movement/calibration, MGA2020 view independence, export reprojection, target skipping, deletion, save/restore and atomic undo/redo.
