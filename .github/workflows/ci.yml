@@ -1,7 +1,12 @@
 name: Verify
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -18,7 +23,9 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - name: Validate Compose configuration
-        run: docker compose -f compose.example.yml config --quiet
+        run: |
+          docker compose -f compose.example.yml config --quiet
+          docker compose -f compose.servarr.yml config --quiet
       - name: Build and start the production container
         run: docker compose -p planscan-ci -f compose.example.yml up --build --detach --wait --wait-timeout 90
         env:
@@ -33,3 +40,21 @@ jobs:
       - name: Stop the production container
         if: always()
         run: docker compose -p planscan-ci -f compose.example.yml down
+  promote-deployment:
+    needs: test-and-build
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Advance the tested deployment branch
+        run: |
+          git fetch origin main
+          if [ "$(git rev-parse origin/main)" = "$GITHUB_SHA" ]; then
+            git push origin "$GITHUB_SHA:refs/heads/deploy"
+          else
+            echo "A newer main commit is being verified; deployment promotion skipped."
+          fi

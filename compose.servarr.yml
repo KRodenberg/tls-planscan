@@ -1,0 +1,48 @@
+# Copy these two services into the existing Servarr stack. Its cloudflared
+# network already exists; the external declaration also permits standalone use.
+services:
+  planscan:
+    image: tls-planscan:latest
+    container_name: planscan
+    build:
+      context: https://github.com/KRodenberg/tls-planscan.git#deploy
+    environment:
+      PORT: "4173"
+      TRUST_PROXY: "1"
+    ports:
+      - "127.0.0.1:4173:4173"
+    networks:
+      - cloudflared
+    labels:
+      com.centurylinklabs.watchtower.git-repo: https://github.com/KRodenberg/tls-planscan.git
+      com.centurylinklabs.watchtower.git-ref: deploy
+      com.centurylinklabs.watchtower.git-watch: "true"
+    init: true
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 15s
+  watchtower:
+    image: nickfedor/watchtower:latest
+    container_name: watchtower
+    environment:
+      WATCHTOWER_POLL_INTERVAL: "300"
+      WATCHTOWER_GIT_ENABLE: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  cloudflared:
+    external: true
+    name: servarr_cloudflared

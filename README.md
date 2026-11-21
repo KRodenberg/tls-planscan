@@ -59,6 +59,8 @@ For a reverse proxy on the same Compose network, remove `ports` and forward to *
 
 Outbound HTTPS access to NSW Spatial Services is required for live imagery and address lookup. No API key is needed. For a production Node deployment without Docker, run `npm run build` then `npm start`.
 
+For a Servarr stack with automatic updates and Cloudflare Tunnel, use [compose.servarr.yml](compose.servarr.yml) and the [deployment guide](docs/SERVARR_DEPLOYMENT.md). Pushes to `main` reach the server after CI passes and Watchtower detects the advanced `deploy` branch.
+
 ## Planning
 
 - Upload PNG, JPG, WEBP or PDF, up to 25 MiB. PDF import includes a page picker and preview. Images preserve their orientation and aspect ratio.

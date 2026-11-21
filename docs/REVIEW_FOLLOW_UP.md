@@ -58,3 +58,7 @@ New scans connect to the preceding scan, skipping targets; imported projects ret
 A multi-stage Node 22 image contains only the built Worker module and a small Node HTTP adapter. The runtime uses the node user and supports read-only operation, health checks and graceful shutdown. The Compose example can be copied into a larger stack. Trusted proxy configuration preserves the public HTTPS origin for map requests.
 
 HTTP integration tests cover GET/HEAD assets, health, POST bodies, origin checks, trusted proxy headers, oversized fixed/chunked bodies and recoverable adapter errors. The browser runner accepts an existing server URL so GitHub Actions builds the image, waits for container health and runs the complete suite against the production container.
+
+## Servarr deployment
+
+The Servarr service example joins the existing cloudflared network, uses trusted proxy headers and includes the requested Nicholas Fedor Watchtower fork. Successful main-branch verification advances deploy; Git monitoring rebuilds only the promoted revision. The deployment guide documents the internal HTTP tunnel origin and the five-minute polling interval. Server credentials and tunnel tokens are excluded from public source.

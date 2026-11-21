@@ -9,6 +9,7 @@ COPY scripts ./scripts
 RUN npm run build
 
 FROM ${NODE_IMAGE} AS runtime
+LABEL org.opencontainers.image.source="https://github.com/KRodenberg/tls-planscan"
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=4173
 WORKDIR /app
 COPY --chown=node:node package.json ./

@@ -45,3 +45,5 @@ Each newly placed scan connects to the last remaining scan, skipping targets. Pr
 Show imagery-unavailable feedback only when no basemap imagery is visible and tile loading has failed. Keep smaller attribution below the active scan-profile control.
 
 Distribute a production Docker image and a service example that can be inserted into an existing Compose stack. Build assets once, run as an unprivileged user, expose a configurable HTTP listener with health checking and graceful shutdown, and support trusted HTTPS reverse proxies. Keep project storage in the browser; no server volume is required.
+
+The Servarr deployment shares the existing Cloudflare tunnel network and runs the Nicholas Fedor Watchtower fork. GitHub Actions advances a deployment branch only after container and browser verification. Watchtower builds that public Git revision and updates PlanScan, while other selected containers use normal registry updates. The public hostname uses HTTPS with an internal HTTP origin. Keep all server passwords, stack environment values and tunnel credentials out of the repository.
