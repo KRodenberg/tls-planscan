@@ -9,7 +9,7 @@ process.env.PLANSCAN_QA_URL=`http://127.0.0.1:${port}`;
 process.env.PLANSCAN_QA_DIR=await mkdtemp(join(tmpdir(),'planscan-browser-'));
 const server=spawn(process.execPath,['scripts/dev.mjs'],{
  cwd:fileURLToPath(new URL('..',import.meta.url)),
- env:{...process.env,PORT:String(port),GOOGLE_MAPS_API_KEY:''},
+ env:{...process.env,PORT:String(port)},
  stdio:['ignore','pipe','pipe']
 });
 let output='';server.stdout.on('data',data=>output+=data);server.stderr.on('data',data=>output+=data);
@@ -25,5 +25,6 @@ try{
  if(!ready)throw new Error('Preview server did not start. '+output);
  await import('./browser/workflows.mjs');
  await import('./browser/edges.mjs');
+ await import('./browser/aerial.mjs');
  console.log('Browser checks passed. Artifacts:',process.env.PLANSCAN_QA_DIR);
 }finally{server.kill();}

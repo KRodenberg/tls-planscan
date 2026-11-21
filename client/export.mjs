@@ -7,7 +7,7 @@ function loadImage(src){return new Promise((resolve,reject)=>{const image=new Im
 function fitText(ctx,text,maxWidth){let result=String(text);while(result.length>1&&ctx.measureText(result).width>maxWidth)result=result.slice(0,-2)+'…';return result;}
 export async function createQA(project,{orientation='landscape',paper='a4',preview=false}={}) {
   const u=project.underlay;if(!u)throw new Error('Add an underlay before exporting.');
-  const source=u.kind==='sample'?'/assets/sample-plan.svg':u.dataUrl;if(!source)throw new Error('Reload the map before exporting.');
+  const source=u.kind==='sample'?'/assets/sample-plan.svg':u.kind==='blank'?'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/%3E':u.dataUrl;if(!source)throw new Error('Add an underlay before exporting.');
   const image=await loadImage(source),canvas=document.createElement('canvas');
   const ratio=paper==='a3'?420/297:297/210;
   canvas.width=preview?1200:2400;canvas.height=Math.round(canvas.width*(orientation==='portrait'?ratio:1/ratio));
@@ -20,6 +20,9 @@ export async function createQA(project,{orientation='landscape',paper='a4',previ
   const top=180*k,bottom=H-350*k,availableW=W-2*m,availableH=bottom-top;
   const scale=Math.min(availableW/u.width,availableH/u.height),x=(W-u.width*scale)/2,y=top+(availableH-u.height*scale)/2;
   ctx.drawImage(image,x,y,u.width*scale,u.height*scale);
+  if(project.overlay){const o=project.overlay,overlay=await loadImage(o.dataUrl),height=o.size*o.height/o.width;
+    ctx.save();ctx.beginPath();ctx.rect(x,y,u.width*scale,u.height*scale);ctx.clip();ctx.translate(x+(o.x+o.size/2)*scale,y+(o.y+height/2)*scale);ctx.rotate(o.rotation*Math.PI/180);ctx.globalAlpha=o.opacity;ctx.drawImage(overlay,-o.size*scale/2,-height*scale/2,o.size*scale,height*scale);ctx.restore();
+  }
   const at=s=>({x:x+s.x*scale,y:y+s.y*scale});
   if(project.display.links){ctx.strokeStyle='#849fc8';ctx.lineWidth=2*k;ctx.setLineDash([7*k,6*k]);for(const l of project.links){const a=project.stations.find(s=>s.id===l.from),b=project.stations.find(s=>s.id===l.to);if(!a||!b)continue;const A=at(a),B=at(b);ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);ctx.stroke();}ctx.setLineDash([]);}
   const r=17*k*project.display.markerSize;
@@ -28,16 +31,18 @@ export async function createQA(project,{orientation='landscape',paper='a4',previ
     else{ctx.beginPath();ctx.moveTo(p.x,p.y-r);ctx.lineTo(p.x+r,p.y+r*.8);ctx.lineTo(p.x-r,p.y+r*.8);ctx.closePath();ctx.fill();ctx.stroke();}
     ctx.font=`600 ${22*k*project.display.markerSize}px Arial,sans-serif`;const label=stationLabel(station),tw=ctx.measureText(label).width;ctx.fillStyle='white';ctx.fillRect(p.x-tw/2-4*k,p.y+r+3*k,tw+8*k,27*k*project.display.markerSize);ctx.textAlign='center';ctx.fillStyle='#263b53';ctx.fillText(label,p.x,p.y+r+24*k*project.display.markerSize);ctx.textAlign='left';
   }
-  const bar=niceScale(u.metresPerPixel,210*k/scale,u.unit);
-  if(bar){const by=H-312*k,bx=m,bw=bar.pixels*scale;ctx.strokeStyle='#53657a';ctx.lineWidth=2*k;ctx.beginPath();ctx.moveTo(bx,by-5*k);ctx.lineTo(bx,by+5*k);ctx.moveTo(bx,by);ctx.lineTo(bx+bw,by);ctx.moveTo(bx+bw,by-5*k);ctx.lineTo(bx+bw,by+5*k);ctx.stroke();ctx.font=`${20*k}px Arial,sans-serif`;ctx.fillStyle='#53657a';ctx.fillText(bar.label,bx+bw+15*k,by+7*k);}
-  ctx.font=`${19*k}px Arial,sans-serif`;ctx.fillStyle='#66778a';ctx.textAlign='right';ctx.fillText(u.metresPerPixel?'Scale calibrated':'Uncalibrated — no measured scale',W-m,H-305*k);ctx.textAlign='left';
+  const bar=niceScale(u.metresPerPixel,210*k/scale);
+  if(bar){const by=H-312*k,bw=bar.pixels*scale,bx=W-m-bw;ctx.strokeStyle='#53657a';ctx.lineWidth=2*k;ctx.beginPath();ctx.moveTo(bx,by-5*k);ctx.lineTo(bx,by+5*k);ctx.moveTo(bx,by);ctx.lineTo(bx+bw,by);ctx.moveTo(bx+bw,by-5*k);ctx.lineTo(bx+bw,by+5*k);ctx.stroke();ctx.font=`${20*k}px Arial,sans-serif`;ctx.fillStyle='#53657a';ctx.textAlign='center';ctx.fillText(bar.label,bx+bw/2,by-13*k);ctx.textAlign='left';}
+  else{ctx.font=`${19*k}px Arial,sans-serif`;ctx.fillStyle='#66778a';ctx.textAlign='right';ctx.fillText('Not to scale',W-m,H-305*k);ctx.textAlign='left';}
+  ctx.font=`${19*k}px Arial,sans-serif`;ctx.fillStyle='#66778a';ctx.fillText(u.georeference?`MGA2020 · Zone ${u.georeference.zone} · EPSG:${u.georeference.epsg}`:u.metresPerPixel?'Scale set · metres':'Local image coordinates',m,H-305*k);
   ctx.strokeStyle='#dce3eb';ctx.lineWidth=k;ctx.beginPath();ctx.moveTo(m,H-277*k);ctx.lineTo(W-m,H-277*k);ctx.stroke();
   const e=estimate(project),column=(W-2*m)/4;
   for(let i=0;i<3;i++){const d=DENSITIES[i],cx=m+i*column;ctx.fillStyle=COLORS[d];ctx.beginPath();ctx.arc(cx+5*k,H-235*k,5*k,0,Math.PI*2);ctx.fill();ctx.font=`600 ${23*k}px Arial,sans-serif`;ctx.fillStyle='#334b65';ctx.fillText(d[0].toUpperCase()+d.slice(1),cx+20*k,H-228*k);ctx.font=`${23*k}px Arial,sans-serif`;ctx.fillStyle='#66778a';ctx.fillText(`${e.counts[d]} × ${inputDuration(project.profiles[d])}`,cx,H-190*k);ctx.font=`600 ${23*k}px Arial,sans-serif`;ctx.fillStyle='#334b65';ctx.fillText(formatDuration(e.subtotals[d]),cx,H-153*k);}
   ctx.fillStyle='#334b65';ctx.font=`600 ${23*k}px Arial,sans-serif`;ctx.fillText('Estimated time',m+column*3,H-228*k);ctx.font=`600 ${32*k}px Arial,sans-serif`;ctx.fillStyle='#285cda';ctx.fillText(formatDuration(e.total),m+column*3,H-184*k);ctx.font=`${19*k}px Arial,sans-serif`;ctx.fillStyle='#66778a';ctx.fillText(`${e.count} stations${e.targets?` · ${e.targets} targets`:''}`,m+column*3,H-151*k);
   ctx.strokeStyle='#dce3eb';ctx.beginPath();ctx.moveTo(m,H-122*k);ctx.lineTo(W-m,H-122*k);ctx.stroke();ctx.font=`${18*k}px Arial,sans-serif`;ctx.fillStyle='#66778a';
   const setup=project.setupSeconds?`Move / setup: ${inputDuration(project.setupSeconds)} per scan · ${formatDuration(e.setup)} total`:'Move / setup excluded';ctx.fillText(setup,m,H-86*k);
-  const note=[project.sample?'Illustrative sample':null,u.kind==='google'?'Google Maps':u.name,u.page?`Page ${u.page}`:null].filter(Boolean).join(' · ');ctx.fillText(fitText(ctx,note,W-2*m),m,H-49*k);
+  ctx.textAlign='right';ctx.fillText(`Targets: ${e.targets} × ${inputDuration(project.targetSeconds||0)} = ${formatDuration(e.target)}`,W-m,H-86*k);ctx.textAlign='left';
+  const note=[project.sample?'Illustrative sample':null,u.kind==='six'?'SIX Maps · © NSW Spatial Services':u.name,u.page?`Page ${u.page}`:null,project.overlay?`Image: ${project.overlay.name}${project.overlay.page?` · Page ${project.overlay.page}`:''}`:null].filter(Boolean).join(' · ');ctx.fillText(fitText(ctx,note,W-2*m),m,H-49*k);
   return canvas;
 }
 export async function saveQA(canvas,project,{format='pdf',paper='a4',orientation='landscape'}={}){

@@ -219,7 +219,7 @@ Controls have gently rounded corners using Base; selected list rows and compact 
 - **Stations:** a selectable list of stable IDs, labelled density and calibrated coordinates. Selection exposes density, X/Y and note fields and highlights the corresponding canvas marker.
 - **Canvas:** proportional underlay, numbered triangles, circle targets, dashed links and selection rings. The illustrative starter is visibly marked Sample.
 - **Dialogs:** native modal behavior, short title, direct fields and right-aligned actions. QA export includes a geometry-preserving preview, paper/orientation controls and the current estimate.
-- **Feedback:** direct notices and toasts; loading uses a spinner that respects reduced motion. Empty canvas actions offer Upload plan, Google Maps and the sample.
+- **Feedback:** direct notices and toasts; loading uses a spinner that respects reduced motion. Empty canvas actions offer Upload plan, SIX Maps aerial and the sample.
 
 ## Do's and Don'ts
 
@@ -241,3 +241,11 @@ Controls have gently rounded corners using Base; selected list rows and compact 
 ## Continuation: 21 November 2026
 
 Selected station metadata uses Selected Ink on Soft Blue to meet text contrast. Phone editing fields use 16px text. Station creation exposes Add scan and Add target together; selection includes a labelled link editor. Set scale supports numeric point coordinates as well as pointer picking. The mobile settings drawer contains focus and restores it on close.
+
+## SIX Maps and metric overlays
+
+SIX Maps is the aerial source. Image/PDF uploads offer a blank canvas or an aerial overlay. Keep overlay controls in Underlay: filename, Adjust image and Remove. Position, width, rotation and opacity live in the adjustment dialog; the Image tool supports direct dragging.
+
+The lower-right canvas scale is a flat white panel above zoom controls. Show a metre scale bar when calibrated, otherwise Not to scale and a distinct Set scale button. Attribution stays at the lower left without obscuring tools. Aerial scale follows its MGA2020 grid; uploaded image size is adjusted separately.
+
+Station selection uses a full-width density selector and two readable coordinate fields. Aerial stations show Easting, Northing and the MGA2020 zone / EPSG reference. Image-only stations show local coordinates. Target scan time sits immediately beneath movement/setup and contributes a labelled subtotal to the estimate and QA footer.

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {newProject,addStation,snapshot,serializable,normalizeProject,coordinateFactor,restoreMapUnderlay,LIMITS} from '../client/core.mjs';
+import {newProject,addStation,snapshot,serializable,normalizeProject,coordinateFactor,LIMITS} from '../client/core.mjs';
 
 test('round trip preserves project timestamps, output choices and link identity',()=>{
  const p=newProject(true);p.createdAt='2025-02-03T04:05:06.000Z';p.updatedAt='2026-11-20T01:02:03.000Z';p.output={paper:'a3',orientation:'portrait',format:'png'};
@@ -27,17 +27,7 @@ test('malformed counters cannot create invalid or reused station numbers',()=>{
  }
  const p=newProject(true);p.nextStationNumber=LIMITS.number+1;assert.throws(()=>addStation(p,50,50),/station limit/);
 });
-test('coordinates use the calibrated distance unit',()=>{
- assert.equal(coordinateFactor(null),1);assert.equal(coordinateFactor({metresPerPixel:null,unit:'ft'}),1);
- assert.ok(Math.abs(coordinateFactor({metresPerPixel:.3048,unit:'ft'})-1)<1e-12);
- assert.equal(coordinateFactor({metresPerPixel:.025,unit:'m'}),.025);
-});
-test('reloading map imagery preserves manually calibrated scale and feet',()=>{
- const previous={width:1280,height:960,metresPerPixel:.42,unit:'ft'};
- const loaded={width:1280,height:960,metresPerPixel:.15,unit:'m',dataUrl:'new imagery'};
- assert.deepEqual(restoreMapUnderlay(previous,loaded),{...loaded,metresPerPixel:.42,unit:'ft'});
- assert.throws(()=>restoreMapUnderlay(previous,{...loaded,width:640}),/dimensions changed/);
-});
+test('local image coordinates use metres when calibrated',()=>{assert.equal(coordinateFactor(null),1);assert.equal(coordinateFactor({metresPerPixel:null}),1);assert.equal(coordinateFactor({metresPerPixel:.025,unit:'m'}),.025);});
 test('undo snapshots isolate nested map metadata and output settings',()=>{
  const p=newProject(true);p.underlay.map={location:'Sydney',zoom:19};const before=snapshot(p);
  p.underlay.map.zoom=20;p.output.paper='a3';assert.equal(before.underlay.map.zoom,19);assert.equal(before.output.paper,'a4');

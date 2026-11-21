@@ -1,0 +1,41 @@
+import {chromium} from 'playwright';
+import AxeBuilder from '@axe-core/playwright';
+import assert from 'node:assert/strict';
+import {writeFile,readFile} from 'node:fs/promises';
+const browser=await chromium.launch({headless:true,args:['--no-sandbox']});const context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+const dir=process.env.PLANSCAN_QA_DIR;
+const download=async(action,name)=>{const waiting=page.waitForEvent('download');await action();const file=await waiting;const path=dir+'/'+name;await file.saveAs(path);return path;};
+try{
+ await page.goto(process.env.PLANSCAN_QA_URL);
+ const aerialImage=Buffer.from(await page.evaluate(()=>{const c=document.createElement('canvas');c.width=1600;c.height=1200;const x=c.getContext('2d');x.fillStyle='#889b77';x.fillRect(0,0,1600,1200);x.fillStyle='#a8a59b';x.fillRect(300,200,900,600);return c.toDataURL().split(',')[1];}),'base64');
+ const metadata={width:1600,height:1200,zone:56,epsg:7856,extent:{xmin:334000,ymin:6252000,xmax:334800,ymax:6252600}};
+ await page.route('**/api/six/aerial',route=>route.fulfill({status:200,contentType:'image/png',headers:{'X-PlanScan-Georeference':JSON.stringify(metadata)},body:aerialImage}));
+ await page.route('**/api/six/search?*',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({results:[{address:'1 TEST STREET SYDNEY',latitude:-33.8568,longitude:151.2153}]})}));
+ await page.locator('#six-map').click();await page.locator('#aerial-address').fill('1 TEST STREET');await page.locator('#find-address').click();await page.locator('#address-results-label').waitFor();assert.match(await page.locator('#address-results').textContent(),/SYDNEY/);
+ await page.getByRole('button',{name:'Load aerial',exact:true}).click();await page.getByRole('button',{name:'Replace underlay',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#underlay-name').textContent==='SIX Maps aerial');
+ assert.equal(await page.locator('#scale-bar').isVisible(),true);assert.equal(await page.locator('#scale-missing').isVisible(),false);assert.equal(await page.locator('#aerial-attribution').isVisible(),true);
+ const point=await page.locator('#viewport').evaluate(el=>{const m=el.getScreenCTM();return{x:m.e+200*m.a,y:m.f+100*m.d};});await page.mouse.click(point.x,point.y);
+ assert.equal(await page.locator('#station-x').inputValue(),'334100.00');assert.equal(await page.locator('#station-y').inputValue(),'6252550.00');assert.match(await page.locator('#coordinate-reference').textContent(),/MGA2020.*56/);
+ await page.locator('#station-x').fill('334200');await page.locator('#station-x').press('Tab');assert.equal(Number(await page.locator('#station-x').inputValue()),334200);
+ await page.locator('#target-time').fill('00:45');await page.locator('#add-target').click();await page.locator('#add-target').click();assert.equal(await page.locator('#estimate-total').textContent(),'4 min 30 sec');
+ await page.locator('#target-time').fill('bad');assert.equal(await page.locator('#export-plan').isDisabled(),true);await page.locator('#target-time').fill('00:45');assert.equal(await page.locator('#export-plan').isDisabled(),false);
+ console.log('PASS aerial address selection, metric scale, MGA2020 placement and target timing');
+ const imageBytes=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=800;c.height=400;const x=c.getContext('2d');x.fillStyle='white';x.fillRect(0,0,800,400);x.strokeStyle='#202020';x.lineWidth=8;x.strokeRect(40,40,720,320);return c.toDataURL().split(',')[1];});
+ const imageFile=dir+'/overlay.png';await writeFile(imageFile,Buffer.from(imageBytes,'base64'));await page.locator('#underlay-input').setInputFiles(imageFile);await page.locator('[name=background]').selectOption('aerial');await page.getByRole('button',{name:'Place image',exact:true}).click();
+ await page.getByRole('heading',{name:'Adjust image overlay'}).waitFor();await page.locator('[name=size]').fill('200');await page.locator('[name=rotation]').fill('20');await page.locator('[name=opacity]').fill('50');await page.getByRole('button',{name:'Apply image',exact:true}).click();
+ await page.locator('#calibrate-plan').click();await page.locator('[name=distance]').fill('160');await page.getByRole('button',{name:'Apply scale',exact:true}).click();assert.equal(await page.locator('#station-count').textContent(),'3');assert.equal(await page.locator('#overlay-controls').isVisible(),true);assert.equal(await page.locator('#image-overlay').getAttribute('opacity'),'0.5');
+ await page.locator('#overlay-tool').click();const before=await page.locator('#image-overlay').getAttribute('transform');const pos=await page.locator('#viewport').evaluate(el=>{const m=el.getScreenCTM();return{x:m.e+800*m.a,y:m.f+500*m.d};});await page.mouse.move(pos.x,pos.y);await page.mouse.down();await page.mouse.move(pos.x+20,pos.y+10);await page.mouse.up();assert.notEqual(await page.locator('#image-overlay').getAttribute('transform'),before);await page.locator('#undo').click();assert.equal(await page.locator('#image-overlay').getAttribute('transform'),before);
+ const projectPath=await download(()=>page.locator('#save-project').click(),'aerial.planscan.json'),saved=JSON.parse(await readFile(projectPath,'utf8'));assert.equal(saved.targetSeconds,45);assert.equal(saved.overlay.opacity,.5);assert.ok(Math.abs(saved.overlay.size-320)<1e-6);assert.equal(saved.overlay.calibrated,true);assert.equal(saved.stations[0].mga2020.easting,334200);assert.ok(saved.underlay.dataUrl);assert.equal(saved.underlay.georeference.epsg,7856);
+ await page.waitForFunction(()=>document.querySelector('#save-state').textContent.includes('Saved on this device'));await page.reload();await page.waitForFunction(()=>document.querySelector('#save-state').textContent.includes('Restored'));assert.equal(await page.locator('#overlay-controls').isVisible(),true);assert.equal(await page.locator('#target-time').inputValue(),'00:45');
+ await page.screenshot({path:dir+'/aerial-overlay.png'});
+ await page.locator('#export-plan').click();await page.locator('[name=format]').selectOption('png');const png=await download(()=>page.getByRole('button',{name:'Download',exact:true}).click(),'aerial-qa.png');assert.equal((await readFile(png)).subarray(1,4).toString(),'PNG');
+ console.log('PASS image overlay alignment, drag/undo, recovery and QA export');
+ const axe=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();assert.deepEqual(axe.violations.map(v=>({id:v.id,nodes:v.nodes.length})),[]);
+ for(const width of [390,320]){await page.setViewportSize({width,height:844});await page.locator('#open-settings').click();await page.screenshot({path:dir+`/aerial-phone-${width}.png`});const checks=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();assert.deepEqual(checks.violations.map(v=>({id:v.id,nodes:v.nodes.length})),[]);await page.keyboard.press('Escape');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);}
+ await page.setViewportSize({width:1440,height:1000});
+ await page.locator('#underlay-input').setInputFiles(imageFile);await page.locator('[name=background]').selectOption('blank');await page.getByRole('button',{name:'Place image',exact:true}).click();await page.getByRole('button',{name:'Replace underlay',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#underlay-name').textContent==='overlay.png');
+ assert.equal(await page.locator('#scale-missing').textContent(),'Not to scale');assert.equal(await page.locator('#canvas-set-scale').isVisible(),true);assert.equal(await page.locator('#overlay-controls').isVisible(),false);
+ await page.locator('#canvas-set-scale').click();await page.locator('[name=distance]').fill('80');await page.getByRole('button',{name:'Apply scale',exact:true}).click();assert.equal(await page.locator('#scale-bar').isVisible(),true);assert.equal(await page.locator('#scale-missing').isVisible(),false);
+ await page.locator('#add-center').click();assert.equal(await page.locator('#coordinate-reference').textContent(),'Local image coordinates');
+ console.log('PASS blank-canvas upload and bottom-right scale calibration');assert.deepEqual(errors,[]);
+}finally{await browser.close();}
