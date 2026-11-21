@@ -53,9 +53,9 @@ try{
   await page.locator('#export-plan').click();await page.locator('[name=orientation]').selectOption('portrait');await page.locator('[name=paper]').selectOption('a3');await page.locator('#qa-preview img').waitFor();await page.screenshot({path:dir+'/export.png'});const path=await download(()=>page.getByRole('button',{name:'Download',exact:true}).click(),'qa.pdf');assert.equal((await readFile(path)).subarray(0,5).toString(),'%PDF-');
   await page.locator('#export-plan').click();assert.equal(await page.locator('[name=paper]').inputValue(),'a3');assert.equal(await page.locator('[name=orientation]').inputValue(),'portrait');await page.locator('[name=format]').selectOption('png');const png=await download(()=>page.getByRole('button',{name:'Download',exact:true}).click(),'qa.png');assert.equal((await readFile(png)).subarray(1,4).toString(),'PNG');
  });
- await check('aerial provider errors remain actionable',async()=>{
-  await page.route('**/api/six/aerial',route=>route.fulfill({status:502,contentType:'application/json',body:JSON.stringify({error:'SIX Maps aerial imagery could not load.'})}));
-  await page.locator('#six-map').click();await page.getByRole('button',{name:'Load aerial',exact:true}).click();await page.locator('.modal-error').waitFor({state:'visible'});assert.match(await page.locator('.modal-error').textContent(),/SIX Maps/);assert.equal(await page.getByRole('button',{name:'Load aerial',exact:true}).isEnabled(),true);await page.locator('#close-modal').click();
+ await check('basemap provider errors remain actionable',async()=>{
+  await page.route('**/api/six/map',route=>route.fulfill({status:502,contentType:'application/json',body:JSON.stringify({error:'SIX Maps basemap could not load.'})}));
+  await page.locator('#six-map').click();await page.getByRole('button',{name:'Load basemap',exact:true}).click();await page.locator('.modal-error').waitFor({state:'visible'});assert.match(await page.locator('.modal-error').textContent(),/SIX Maps/);assert.equal(await page.getByRole('button',{name:'Load basemap',exact:true}).isEnabled(),true);await page.locator('#close-modal').click();
  });
  await page.screenshot({path:dir+'/desktop.png'});
  const axe=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();await writeFile(dir+'/accessibility.json',JSON.stringify(axe.violations,null,2));assert.deepEqual(axe.violations.map(v=>({id:v.id,nodes:v.nodes.length})),[]);console.log('PASS desktop accessibility');

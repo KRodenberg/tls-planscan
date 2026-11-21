@@ -15,10 +15,13 @@
   },
   "dependencies": {
     "jspdf": "4.2.1",
-    "pdfjs-dist": "6.5.438"
+    "ol": "10.11.0",
+    "pdfjs-dist": "6.5.438",
+    "proj4": "2.23.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
+    "esbuild": "0.28.2",
     "playwright": "1.65.1"
   }
 }

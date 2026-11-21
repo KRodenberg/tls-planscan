@@ -45,7 +45,7 @@ export function addStation(project, x, y, kind = 'scan', density = 'medium') {
 export function deleteStation(project, id) { project.stations = project.stations.filter(s => s.id !== id); project.links = project.links.filter(l => l.from !== id && l.to !== id); }
 export function snapshot(project) {
   return {...project,profiles:{...project.profiles},display:{...project.display},output:{...project.output},
-    underlay:project.underlay?{...project.underlay,...(project.underlay.map?{map:{...project.underlay.map}}:{}),...(project.underlay.georeference?{georeference:{...project.underlay.georeference,extent:{...project.underlay.georeference.extent}}}:{})}:null,
+    underlay:project.underlay?{...project.underlay,...(project.underlay.map?{map:{...project.underlay.map,...(project.underlay.map.wmts?{wmts:{...project.underlay.map.wmts}}:{})}}:{}),...(project.underlay.georeference?{georeference:{...project.underlay.georeference,extent:{...project.underlay.georeference.extent}}}:{})}:null,
     overlay:project.overlay?{...project.overlay}:null,
     stations:project.stations.map(s=>({...s,...(s.mga2020?{mga2020:{...s.mga2020}}:{})})),links:project.links.map(l=>({...l}))};
 }
@@ -76,7 +76,7 @@ export function normalizeProject(raw) {
       p.underlay.georeference={zone:g.zone,epsg:g.epsg,extent:{xmin:e.xmin,ymin:e.ymin,xmax:e.xmax,ymax:e.ymax}};
       p.underlay.metresPerPixel=(e.xmax-e.xmin)/u.width;
       p.underlay.map={latitude:Number(u.map?.latitude)||0,longitude:Number(u.map?.longitude)||0,widthMetres:Number(u.map?.widthMetres)||500};
-      p.underlay.source='SIX Maps · NSW Spatial Services';
+      if(u.map?.wmts){p.underlay.map.wmts={capabilitiesUrl:'https://maps.six.nsw.gov.au/arcgis/rest/services/public/NSW_Base_Map/MapServer/WMTS/1.0.0/WMTSCapabilities.xml',layer:'public_NSW_Base_Map',matrixSet:'default028mm'};p.underlay.source='SIX Maps NSW Base Map · WMTS';}else p.underlay.source='SIX Maps · NSW Spatial Services';
     }
   }
   if(raw.overlay){

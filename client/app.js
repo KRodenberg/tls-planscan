@@ -1,5 +1,6 @@
 import {DENSITIES,LIMITS,COLORS,uid,stationLabel,parseDuration,inputDuration,formatDuration,estimate,newProject,addStation,deleteStation,snapshot,serializable,normalizeProject,coordinateFactor,stationCoordinates,coordinateToPixel,updateStationCoordinates,niceScale,newOverlay,overlayPointToWorld,calibrateOverlay} from './core.mjs';
 import {createQA,saveQA,downloadFile} from './export.mjs';
+import {loadSixWmts} from '/vendor/wmts.mjs';
 
 const $ = id => document.getElementById(id);
 const svgNS='http://www.w3.org/2000/svg';
@@ -21,7 +22,7 @@ function undo(){if(!past.length)return;future.push(snapshot(project));project=pa
 function redo(){if(!future.length)return;past.push(snapshot(project));project=future.pop();selected=null;invalidTimes.clear();render();fitPlan();saveDraft();announce('Redone.');}
 
 function imageSource(){const u=project.underlay;return u?.kind==='sample'?'/assets/sample-plan.svg':u?.kind==='blank'?'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/%3E':u?.dataUrl||'';}
-function setTool(next){if(next==='scale'&&project.underlay?.georeference&&!project.overlay){toast('Aerial scale is set by its MGA2020 grid. Adjust image size in overlay settings.');return;}tool=next;linkStart=null;scalePoints=[];renderTools();renderCanvas();if(next==='scale'&&project.underlay)notice(project.overlay?'Select two points on the uploaded image.':'Select two points with a known distance.');else notice(null);}
+function setTool(next){if(next==='scale'&&project.underlay?.georeference&&!project.overlay){toast('Basemap scale is set by its MGA2020 grid. Adjust image size in overlay settings.');return;}tool=next;linkStart=null;scalePoints=[];renderTools();renderCanvas();if(next==='scale'&&project.underlay)notice(project.overlay?'Select two points on the uploaded image.':'Select two points with a known distance.');else notice(null);}
 function renderTools(){document.querySelectorAll('[data-tool]').forEach(b=>{const active=b.dataset.tool===tool;b.classList.toggle('selected',active);b.setAttribute('aria-pressed',String(active));});document.querySelectorAll('[data-density]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.density===density)));$('canvas-stage').dataset.mode=tool;const label={select:'Select and move',scan:`Place scan · ${density[0].toUpperCase()+density.slice(1)}`,target:'Place target',link:linkStart?'Select second station':'Link two stations',scale:'Set scale · two points',pan:'Pan plan',overlay:'Move image overlay'}[tool];$('tool-status').innerHTML=tool==='scan'?`<span class="density-dot ${density}"></span>${label}`:label;}
 function notice(text,action){const el=$('canvas-notice');el.hidden=!text;el.replaceChildren();if(text){el.append(document.createTextNode(text));if(action){const b=document.createElement('button');b.className='text-button';b.textContent=action.label;b.onclick=action.run;el.append(b);}}}
 function render(list=true){
@@ -180,7 +181,7 @@ function actions(label='Save'){return `<div class="modal-actions"><button class=
 function confirm(title,copy,action,label='Continue'){showModal(title,`<form class="modal-form"><p class="modal-copy">${escapeHTML(copy)}</p>${actions(label)}</form>`,()=>{$('modal').close();action();});}
 function calibrationDialog(manual=false){
  const u=project.underlay;if(!u)return;const overlay=u.georeference?project.overlay:null;
- if(u.georeference&&!overlay){toast('Aerial scale is set by its MGA2020 grid.');return;}
+ if(u.georeference&&!overlay){toast('Basemap scale is set by its MGA2020 grid.');return;}
  const image=overlay||u,points=manual?[{x:0,y:0},{x:image.width,y:0}]:scalePoints;
  if(!manual&&Math.hypot(points[1].x-points[0].x,points[1].y-points[0].y)<2){scalePoints=[];toast('Select two different points.',true);renderCanvas();return;}
  const coordinates=manual?`<p class="form-hint">Enter two image points in pixels, then their known separation in metres.</p><div class="form-row">${['x','y'].map(axis=>`<label>Point A ${axis.toUpperCase()} (px)<input name="a-${axis}" type="number" min="0" max="${axis==='x'?image.width:image.height}" value="0" step="any" required></label>`).join('')}</div><div class="form-row">${['x','y'].map(axis=>`<label>Point B ${axis.toUpperCase()} (px)<input name="b-${axis}" type="number" min="0" max="${axis==='x'?image.width:image.height}" value="${axis==='x'?image.width:0}" step="any" required></label>`).join('')}</div><button type="button" class="text-button" id="pick-scale-points">Pick points on plan</button>`:'';
@@ -227,7 +228,7 @@ async function applyUnderlay(underlay,{overlayImage=null}={}){
  if(project.stations.length)confirm('Replace underlay?','Existing stations will be cleared. You can undo this.',run,'Replace underlay');else run();
 }
 function chooseImagePlacement(image){
- showModal('Place uploaded plan',`<form class="modal-form"><p class="modal-copy">${escapeHTML(image.name)}</p><label>Background<select name="background"><option value="blank">Blank canvas</option><option value="aerial" ${project.underlay?.kind==='six'?'selected':''}>SIX Maps aerial</option></select></label><p class="form-hint">An aerial overlay can be moved, rotated, resized and faded to align with the site.</p>${formError()}${actions('Place image')}</form>`,async data=>{
+ showModal('Place uploaded plan',`<form class="modal-form"><p class="modal-copy">${escapeHTML(image.name)}</p><label>Background<select name="background"><option value="blank">Blank canvas</option><option value="aerial" ${project.underlay?.kind==='six'?'selected':''}>SIX Maps basemap</option></select></label><p class="form-hint">A basemap overlay can be moved, rotated, resized and faded to align with the site.</p>${formError()}${actions('Place image')}</form>`,async data=>{
   $('modal').close();if(data.get('background')==='blank'){await applyUnderlay(image);return;}
   if(project.underlay?.kind!=='six'){openMap(image);return;}
   const place=()=>{commit(p=>p.overlay=newOverlay(p.underlay,image));toggleSettings(false);openOverlaySettings();};
@@ -244,7 +245,7 @@ function openOverlaySettings(){
  $('move-overlay').onclick=()=>{$('modal').close();toggleSettings(false);setTool('overlay');};
 }
 $('adjust-overlay').onclick=openOverlaySettings;
-$('remove-overlay').onclick=()=>confirm('Remove image overlay?','The aerial and stations will stay in place. You can undo this.',()=>{commit(p=>p.overlay=null);setTool('select');},'Remove image');
+$('remove-overlay').onclick=()=>confirm('Remove image overlay?','The basemap and stations will stay in place. You can undo this.',()=>{commit(p=>p.overlay=null);setTool('select');},'Remove image');
 async function loadUnderlay(file){try{if(file.size>LIMITS.uploadBytes)throw new Error('Choose a file smaller than 25 MB.');if(file.type==='application/pdf'||/\.pdf$/i.test(file.name)){await loadPDF(file);return;}if(!['image/png','image/jpeg','image/webp'].includes(file.type))throw new Error('Choose a PDF, PNG, JPG or WEBP file.');const src=await fileData(file),image=await loadImage(src);if(image.width>16000||image.height>16000||image.width*image.height>48000000)throw new Error('Use an image under 48 megapixels and 16,000 px per side.');chooseImagePlacement({kind:'image',name:file.name,width:image.width,height:image.height,dataUrl:src,metresPerPixel:null,unit:'m',source:file.name,page:null});}catch(err){toast(err.message,true);}}
 async function loadPDF(file){
  toast('Opening PDF…');const pdfjs=await import('/vendor/pdf.mjs');pdfjs.GlobalWorkerOptions.workerSrc='/vendor/pdf.worker.mjs';
@@ -273,22 +274,18 @@ $('rotate-plan').onclick=async()=>{const u=project.underlay;if(!u||u.kind==='six
 ['six-map','empty-map'].forEach(id=>$(id).onclick=()=>openMap());
 function openMap(overlayImage=null){
  const controller=new AbortController(),map=project.underlay?.kind==='six'?project.underlay.map:null;
- showModal('SIX Maps aerial',`<form class="modal-form"><div class="address-search"><label>NSW address<input id="aerial-address" maxlength="150" placeholder="Street number, street and suburb" autocomplete="off"></label><button class="button" type="button" id="find-address">Find address</button></div><label id="address-results-label" hidden>Choose address<select id="address-results"></select></label><p class="form-hint" id="address-status" role="status"></p><div class="form-row"><label>Latitude (GDA2020)<input name="latitude" type="number" step="any" min="-39" max="-28" value="${map?.latitude||-33.8568}" required></label><label>Longitude (GDA2020)<input name="longitude" type="number" step="any" min="140" max="160" value="${map?.longitude||151.2153}" required></label></div><label>Aerial width (m)<input name="widthMetres" type="number" min="25" max="20000" step="any" value="${map?.widthMetres||500}" required></label><p class="form-hint">NSW aerial imagery. Stations use the returned MGA2020 grid.</p>${formError()}${actions('Load aerial')}</form>`,async(data,form)=>{
-  const button=form.querySelector('[type=submit]');button.disabled=true;button.innerHTML='<span class="loading-spinner"></span>Loading aerial…';
+ showModal('SIX Maps basemap',`<form class="modal-form"><div class="address-search"><label>NSW address<input id="aerial-address" maxlength="150" placeholder="Street number, street and suburb" autocomplete="off"></label><button class="button" type="button" id="find-address">Find address</button></div><label id="address-results-label" hidden>Choose address<select id="address-results"></select></label><p class="form-hint" id="address-status" role="status"></p><div class="form-row"><label>Latitude (GDA2020)<input name="latitude" type="number" step="any" min="-39" max="-28" value="${map?.latitude||-33.8568}" required></label><label>Longitude (GDA2020)<input name="longitude" type="number" step="any" min="140" max="160" value="${map?.longitude||151.2153}" required></label></div><label>Map width (m)<input name="widthMetres" type="number" min="25" max="20000" step="any" value="${map?.widthMetres||500}" required></label><p class="form-hint">NSW Base Map WMTS. Stations use MGA2020 coordinates.</p>${formError()}${actions('Load basemap')}</form>`,async(data,form)=>{
+  const button=form.querySelector('[type=submit]');button.disabled=true;button.innerHTML='<span class="loading-spinner"></span>Loading basemap…';
   try{
    const params={latitude:Number(data.get('latitude')),longitude:Number(data.get('longitude')),widthMetres:Number(data.get('widthMetres'))};
-   const response=await fetch('/api/six/aerial',{method:'POST',signal:controller.signal,headers:{'Content-Type':'application/json'},body:JSON.stringify(params)});
-   if(!response.ok){const error=await response.json();throw new Error(error.error||'SIX Maps could not load.');}
-   const metadata=JSON.parse(response.headers.get('X-PlanScan-Georeference')||'null');if(!metadata)throw new Error('The aerial has no MGA2020 location reference. Retry.');
-   const src=await fileData(await response.blob()),image=await loadImage(src);if(!form.isConnected||!$('modal').open)return;
-   if(image.width!==metadata.width||image.height!==metadata.height)throw new Error('The aerial dimensions do not match its location reference. Retry.');
-   const underlay={kind:'six',name:'SIX Maps aerial',width:image.width,height:image.height,dataUrl:src,metresPerPixel:(metadata.extent.xmax-metadata.extent.xmin)/image.width,unit:'m',source:'SIX Maps · NSW Spatial Services',page:null,map:params,georeference:{zone:metadata.zone,epsg:metadata.epsg,extent:metadata.extent}};
+   const result=await loadSixWmts(params,{signal:controller.signal,onProgress:text=>{button.textContent=text;}});if(!form.isConnected||!$('modal').open)return;
+   const underlay={kind:'six',name:'SIX Maps basemap',width:result.width,height:result.height,dataUrl:result.dataUrl,metresPerPixel:result.metresPerPixel,unit:'m',source:'SIX Maps NSW Base Map · WMTS',page:null,map:{...params,wmts:result.wmts},georeference:result.georeference};
    // Use the project validator for provider metadata before changing the current plan.
    const checked=normalizeProject({...newProject(),underlay}).underlay;
    const previous=project.underlay;
    const sameArea=previous?.kind==='six'&&previous.width===checked.width&&previous.height===checked.height&&JSON.stringify(previous.georeference)===JSON.stringify(checked.georeference);
    $('modal').close();if(sameArea&&!overlayImage){commit(p=>p.underlay=checked,{fit:true});toggleSettings(false);}else await applyUnderlay(checked,{overlayImage});
-  }finally{button.disabled=false;button.textContent='Load aerial';}
+  }finally{button.disabled=false;button.textContent='Load basemap';}
  });
  modalCleanup=()=>controller.abort();
  let searchTicket=0,results=[];

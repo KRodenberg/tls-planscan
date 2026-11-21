@@ -42,7 +42,7 @@ export async function createQA(project,{orientation='landscape',paper='a4',previ
   ctx.strokeStyle='#dce3eb';ctx.beginPath();ctx.moveTo(m,H-122*k);ctx.lineTo(W-m,H-122*k);ctx.stroke();ctx.font=`${18*k}px Arial,sans-serif`;ctx.fillStyle='#66778a';
   const setup=project.setupSeconds?`Move / setup: ${inputDuration(project.setupSeconds)} per scan · ${formatDuration(e.setup)} total`:'Move / setup excluded';ctx.fillText(setup,m,H-86*k);
   ctx.textAlign='right';ctx.fillText(`Targets: ${e.targets} × ${inputDuration(project.targetSeconds||0)} = ${formatDuration(e.target)}`,W-m,H-86*k);ctx.textAlign='left';
-  const note=[project.sample?'Illustrative sample':null,u.kind==='six'?'SIX Maps · © NSW Spatial Services':u.name,u.page?`Page ${u.page}`:null,project.overlay?`Image: ${project.overlay.name}${project.overlay.page?` · Page ${project.overlay.page}`:''}`:null].filter(Boolean).join(' · ');ctx.fillText(fitText(ctx,note,W-2*m),m,H-49*k);
+  const note=[project.sample?'Illustrative sample':null,u.kind==='six'?(u.map?.wmts?'SIX Maps NSW Base Map WMTS · © NSW Spatial Services':'SIX Maps · © NSW Spatial Services'):u.name,u.page?`Page ${u.page}`:null,project.overlay?`Image: ${project.overlay.name}${project.overlay.page?` · Page ${project.overlay.page}`:''}`:null].filter(Boolean).join(' · ');ctx.fillText(fitText(ctx,note,W-2*m),m,H-49*k);
   return canvas;
 }
 export async function saveQA(canvas,project,{format='pdf',paper='a4',orientation='landscape'}={}){
